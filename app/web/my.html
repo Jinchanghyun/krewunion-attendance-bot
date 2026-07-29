@@ -74,7 +74,7 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
 <body>
 <div class="wrap">
   <div class="top">
-    <div class="who"><div class="logo">근태</div><div><h1 id="nm">내 근태</h1><p id="sub">—</p></div></div>
+    <div class="who"><div><h1 id="nm">내 근태</h1><p id="sub">—</p></div></div>
     <div class="modes">
       <span class="mode on">직원 모드</span>
       <a class="mode hidden" id="adminlink">관리 대시보드</a>
@@ -240,7 +240,7 @@ function renderSchedule(){const c=CFG||{};const WT={normal:'일반근무',flex:'
       <tr><td style="color:var(--muted)">소정 출퇴근</td><td>${c.checkin||'09:00'} ~ ${c.checkout||'18:00'} (휴게 ${c.break_start||'12:00'}~${c.break_end||'13:00'})</td></tr>
       <tr><td style="color:var(--muted)">놀금(리커버리데이)</td><td>${nol}</td></tr>
     </table>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">단축근무 규칙 (출근·퇴근 추가형)</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">단축근무 규칙</div>
     <div>${rulesHtml}</div>`;}
 
 /* 시간외근무 */

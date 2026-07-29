@@ -96,17 +96,18 @@ def home_view(emp: dict, state: dict) -> dict:
         _link_button("근무 설정", settings_link(emp)),
     ])
 
+    # 누락 등록 (버튼 없이 명령어만, 다른 항목과 같은 볼드+아이콘 스타일)
+    blocks.append({"type": "section", "text": {"type": "mrkdwn",
+        "text": ":pencil: *누락 등록*   `/attend miss 2026-08-01 09:00 18:00`"}})
+
     dlink = dashboard_link(emp)
     if dlink:   # 관리자(hr/sysadmin)에게만
+        blocks.append({"type": "divider"})
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ":gear: *관리자*"}})
         blocks.append({"type": "actions", "elements": [
             _link_button("통계", dlink),
             _link_button("대시보드", dlink, style="primary"),
         ]})
-
-    blocks.append({"type": "divider"})
-    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
-        "text": "누락 등록: `/attend miss 2026-08-01 09:00 18:00`  ·  전체 명령어: `/attend`"}]})
     return {"type": "home", "blocks": blocks}
 
 
@@ -183,10 +184,10 @@ def leave_modal() -> dict:
                 ]}},
             {"type": "input", "block_id": "start", "label": {"type": "plain_text", "text": "시작일"},
              "element": {"type": "datepicker", "action_id": "v"}},
-            {"type": "input", "block_id": "end", "optional": True,
-             "label": {"type": "plain_text", "text": "종료일 (연차 종일만)"},
+            {"type": "input", "block_id": "end",
+             "label": {"type": "plain_text", "text": "종료일"},
              "element": {"type": "datepicker", "action_id": "v"}},
-            {"type": "input", "block_id": "reason", "optional": True,
+            {"type": "input", "block_id": "reason",
              "label": {"type": "plain_text", "text": "사유"},
              "element": {"type": "plain_text_input", "action_id": "v"}},
         ],

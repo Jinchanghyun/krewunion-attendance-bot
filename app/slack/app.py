@@ -17,8 +17,10 @@ from app.domain import leave as leave_engine
 from app.slack import views
 
 # process_before_response=True: 서버리스(Vercel)에서 응답 전에 처리를 끝내야 하므로 필수
+# token_verification_enabled=False: 앱 초기화 때 Slack auth_test 네트워크 호출을 하지 않음
+#   (이게 실패하면 앱 임포트 자체가 깨져 사이트 전 경로가 404가 되므로 반드시 끔)
 app = App(token=settings.SLACK_BOT_TOKEN, signing_secret=settings.SLACK_SIGNING_SECRET,
-          process_before_response=True)
+          process_before_response=True, token_verification_enabled=False)
 
 
 # ── 접근 통제: 등록된 임직원 + (선택)화이트리스트만 ────
