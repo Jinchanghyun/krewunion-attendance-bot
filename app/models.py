@@ -40,6 +40,7 @@ class WorkConfig(Base):
     break_end: Mapped[str | None] = mapped_column(String, default="13:00")
     recovery: Mapped[dict] = mapped_column(JSON, default=dict)          # 놀금 설정
     short_rules: Mapped[list] = mapped_column(JSON, default=list)       # 단축근무 규칙 목록
+    leave_config: Mapped[dict] = mapped_column(JSON, default=dict)      # 개인 휴가 부여 설정
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

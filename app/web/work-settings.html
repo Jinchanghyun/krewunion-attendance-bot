@@ -134,8 +134,9 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
             <div class="row3">
               <div class="field"><label class="fl">구분</label><select id="r-kind"><option value="late">출근 늦춤</option><option value="early">퇴근 당김</option></select></div>
               <div class="field"><label class="fl">단축 시간</label><select id="r-amt"><option value="30">30분</option><option value="60">1시간</option><option value="120">2시간</option></select></div>
-              <div class="field"><label class="fl">사유</label><select id="r-reason"><option>육아기</option><option>임신기</option><option>가족돌봄</option><option>기타</option></select></div>
+              <div class="field"><label class="fl">유형(사유)</label><select id="r-reason"><option>명절</option><option>생일</option><option>리프레시</option><option>기타</option></select></div>
             </div>
+            <div class="field hidden" id="r-reason-etc-wrap"><label class="fl">기타 사유 입력</label><input type="text" id="r-reason-etc" placeholder="예: 창립기념일 조기퇴근"></div>
             <div class="field"><label class="fl">반복 방식</label>
               <div class="opts" id="r-repeat" style="grid-template-columns:1fr 1fr 1fr">
                 <div class="opt on" data-v="weekly"><div class="ot">매주 요일</div></div>
@@ -196,7 +197,7 @@ const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 
 let state = {work_type:'normal', checkin:'09:00', checkout:'18:00', break_start:'12:00', break_end:'13:00',
   recovery:{mode:'none', anchor:null, custom:[]}, short_on:false, short_rules:[]};
-const draft = {kind:'late', amount_min:30, reason:'육아기', repeat:'weekly', weekdays:[], dates:[], start:null, end:null};
+const draft = {kind:'late', amount_min:30, reason:'명절', repeat:'weekly', weekdays:[], dates:[], start:null, end:null};
 
 /* ── 로드 ── */
 async function load(){
@@ -255,7 +256,8 @@ window.rmCustom=d=>{state.recovery.custom=state.recovery.custom.filter(x=>x!==d)
 $('sh-on').addEventListener('change',e=>{state.short_on=e.target.checked;$('sh-fields').classList.toggle('hidden',!e.target.checked);render();});
 $('r-kind').addEventListener('change',e=>draft.kind=e.target.value);
 $('r-amt').addEventListener('change',e=>draft.amount_min=+e.target.value);
-$('r-reason').addEventListener('change',e=>draft.reason=e.target.value);
+$('r-reason').addEventListener('change',e=>{const v=e.target.value;const etc=v==='기타';$('r-reason-etc-wrap').classList.toggle('hidden',!etc);draft.reason=etc?($('r-reason-etc').value.trim()||'기타'):v;});
+$('r-reason-etc').addEventListener('input',e=>{draft.reason=e.target.value.trim()||'기타';});
 $('r-start').addEventListener('change',e=>draft.start=e.target.value||null);
 $('r-end').addEventListener('change',e=>draft.end=e.target.value||null);
 $('r-repeat').addEventListener('click',e=>{const o=e.target.closest('.opt');if(!o)return;

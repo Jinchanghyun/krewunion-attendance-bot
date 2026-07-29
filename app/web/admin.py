@@ -208,6 +208,22 @@ async def cancel_my_leave(req: Request, emp: dict = Depends(require_employee)):
     return {"ok": True}
 
 
+# ── 개인 휴가 부여 설정(휴가 관리 탭) ──────────────────
+@api.get("/api/my/leave-config")
+def get_my_leave_config(emp: dict = Depends(require_employee)):
+    return {"leave_config": repo.work_config(emp["id"]).get("leave_config", {})}
+
+
+@api.post("/api/my/leave-config")
+async def save_my_leave_config(req: Request, emp: dict = Depends(require_employee)):
+    body = await req.json()
+    cfg = body.get("leave_config")
+    if not isinstance(cfg, dict):
+        raise HTTPException(400, "leave_config는 객체여야 합니다.")
+    repo.save_work_config(emp["id"], {"leave_config": cfg})
+    return {"ok": True}
+
+
 @api.get("/setup")
 def setup(key: str = ""):
     """일회성 초기 설정 — DB 테이블 생성 + 샘플 데이터 + 관리자 토큰 발급.
@@ -524,3 +540,33 @@ def cron_checkin_scan(authorization: str = Header(default="")):
                                      run_send_due_checkout_prompts)
     return {"checkin_sent": run_send_due_checkin_prompts(),
             "checkout_sent": run_send_due_checkout_prompts()}
+
+
+# ── Cron: 연장근로 신청 안내 (시차=다음날 · 선택적=월초) ─
+@api.get("/cron/overtime-notify")
+def cron_overtime_notify(authorization: str = Header(default="")):
+    expected = os.getenv("CRON_SECRET", settings.JWT_SECRET)
+    if authorization != f"Bearer {expected}":
+        raise HTTPException(403, "forbidden")
+    from datetime import date as _date
+    from app.links import make_code
+    today = _date.today()
+    sent = 0
+    for n in repo.pending_overtime_notifications(today):
+        rkey = f"ot_{n['kind']}_{n['ref']}"
+        if not repo.mark_reminder_once(n["emp_id"], today, rkey):
+            continue  # 이미 안내함
+        try:
+            from app.slack.app import app as slack_app
+            link = f"{settings.WEB_BASE_URL}/go/{make_code(n['slack'], 'me')}"
+            if n["kind"] == "flex":
+                txt = (f":stopwatch: 어제({n['ref']}) 연장근로 *{n['hours']}시간* 발생 — "
+                       f"오늘 신청해 주세요.\n• 신청: {link} → 시간외근무 탭")
+            else:
+                txt = (f":stopwatch: 지난달({n['ref']}) 연장근로 *{n['hours']}시간* 발생 — "
+                       f"이번 주 안에 신청해 주세요.\n• 신청: {link} → 시간외근무 탭")
+            slack_app.client.chat_postMessage(channel=n["slack"], text=txt)
+            sent += 1
+        except Exception as ex:
+            print("overtime notify failed:", ex)
+    return {"ok": True, "sent": sent}

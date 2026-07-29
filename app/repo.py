@@ -5,7 +5,7 @@ Slack 핸들러·스케줄러·웹 라우트는 이 인터페이스만 바라본
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -31,7 +31,8 @@ def _config_dict(c: WorkConfig) -> dict:
     return {"employee_id": c.employee_id, "work_type": c.work_type,
             "checkin": c.checkin, "checkout": c.checkout,
             "break_start": c.break_start, "break_end": c.break_end,
-            "recovery": c.recovery or {}, "short_rules": c.short_rules or []}
+            "recovery": c.recovery or {}, "short_rules": c.short_rules or [],
+            "leave_config": getattr(c, "leave_config", None) or {}}
 
 
 # ── 직원 / 설정 ────────────────────────────────────────
@@ -57,7 +58,7 @@ def work_config(employee_id: str) -> dict:
             return {"employee_id": employee_id, "work_type": "normal",
                     "checkin": "09:00", "checkout": "18:00",
                     "break_start": "12:00", "break_end": "13:00",
-                    "recovery": {"mode": "none"}, "short_rules": []}
+                    "recovery": {"mode": "none"}, "short_rules": [], "leave_config": {}}
         return _config_dict(c)
 
 
@@ -305,8 +306,11 @@ def my_month(employee_id: str, month: str) -> dict:
                "overtime": sum(r["overtime"] for r in records),
                "night": sum(r["night"] for r in records),
                "holiday": sum(r["holiday"] for r in records)}
+    from app.domain import worktime as _wt
+    yy, mm = int(month[:4]), int(month[5:7])
+    wt = _wt.monthly_summary(cfg, records, leaves, yy, mm)
     return {"month": month, "records": records, "leaves": leaves,
-            "config": cfg, "summary": summary}
+            "config": cfg, "summary": summary, "worktime": wt}
 
 
 def my_approvals(employee_id: str) -> list[dict]:
@@ -355,6 +359,66 @@ def update_approval(approval_id: int, status: str, approver_id: str) -> dict:
         return {"id": a.id, "kind": a.kind, "status": status,
                 "emp_name": e.name, "approver_name": approver_id,
                 "decided_hm": a.decided_at.strftime("%H:%M")}
+
+
+def mark_reminder_once(employee_id: str, d: date, kind: str) -> bool:
+    """중복 발송 가드. 처음이면 기록하고 True, 이미 있으면 False."""
+    with session_scope() as s:
+        exists = s.scalar(select(SlackReminder).where(
+            SlackReminder.employee_id == employee_id,
+            SlackReminder.date == d, SlackReminder.kind == kind))
+        if exists:
+            return False
+        s.add(SlackReminder(employee_id=employee_id, date=d, kind=kind))
+        return True
+
+
+def pending_overtime_notifications(today: date) -> list[dict]:
+    """오늘 보낼 연장근로 신청 안내 대상.
+    - 시차(flex): 어제(평일) 실근로 8h 초과 → 오늘 신청 안내
+    - 선택적(selective): 매월 1~7일 → 지난달 월 소정 초과분 안내
+    """
+    from calendar import monthrange
+    from app.domain import worktime as _wt
+    from app.domain.schedule import FRI
+    out: list[dict] = []
+    with session_scope() as s:
+        for e in s.scalars(select(Employee)).all():
+            c = s.get(WorkConfig, e.id)
+            cfg = _config_dict(c) if c else None
+            if not cfg:
+                continue
+            wtype = cfg.get("work_type")
+            if wtype == "flex":
+                y = today - timedelta(days=1)
+                if y.weekday() > FRI:
+                    continue
+                rec = s.scalar(select(AttendanceRecord).where(
+                    AttendanceRecord.employee_id == e.id, AttendanceRecord.date == y))
+                mins = rec.work_minutes if rec else 0
+                ot = max(0, mins - _wt.STD_DAY_MIN)
+                if ot > 0:
+                    out.append({"emp_id": e.id, "slack": e.slack_user_id, "name": e.name,
+                                "kind": "flex", "hours": round(ot / 60, 1), "ref": y.isoformat()})
+            elif wtype == "selective":
+                if not (1 <= today.day <= 7):
+                    continue
+                py = today.year - (1 if today.month == 1 else 0)
+                pm = 12 if today.month == 1 else today.month - 1
+                ms, me = date(py, pm, 1), date(py, pm, monthrange(py, pm)[1])
+                recs = [{"work": r.work_minutes} for r in s.scalars(select(AttendanceRecord).where(
+                    AttendanceRecord.employee_id == e.id,
+                    AttendanceRecord.date >= ms, AttendanceRecord.date <= me)).all()]
+                leaves = [{"kind": l.kind, "start": l.start.isoformat(), "end": l.end.isoformat()}
+                          for l in s.scalars(select(LeaveRequest).where(
+                              LeaveRequest.employee_id == e.id,
+                              LeaveRequest.start <= me, LeaveRequest.end >= ms)).all()]
+                summ = _wt.monthly_summary(cfg, recs, leaves, py, pm)
+                if summ["overtime_min"] > 0:
+                    out.append({"emp_id": e.id, "slack": e.slack_user_id, "name": e.name,
+                                "kind": "selective", "hours": round(summ["overtime_min"] / 60, 1),
+                                "ref": f"{py}-{pm:02d}"})
+    return out
 
 
 def is_manager_of(approver_slack_id: str, employee_id: str | None = None) -> bool:
