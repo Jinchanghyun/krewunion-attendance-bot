@@ -164,7 +164,8 @@ async def cancel_my_overtime(req: Request, emp: dict = Depends(require_employee)
 # ── 연차(무승인 즉시 반영) : 웹에서 신청/취소 ──────────
 @api.get("/api/my/leave")
 def my_leave_list(emp: dict = Depends(require_employee)):
-    return {"rows": repo.my_leaves(emp["id"]), "balance": emp.get("leave_balance")}
+    return {"rows": repo.my_leaves(emp["id"]), "balance": emp.get("leave_balance"),
+            "balances": repo.leave_balances(emp["id"])}
 
 
 @api.post("/api/my/leave")
@@ -188,6 +189,21 @@ async def create_my_leave(req: Request, emp: dict = Depends(require_employee)):
         raise HTTPException(400, "종료일이 시작일보다 빠를 수 없습니다.")
     reason = (body.get("reason") or "").strip()   # 선택
     cfg = repo.work_config(emp["id"])
+    # 부여 일수 초과 방지(일 단위 그룹만) — 안식휴가는 달력일 기준
+    grp = repo._leave_group_of(kind)
+    if grp:
+        bals = {b["group"]: b for b in repo.leave_balances(emp["id"])}
+        if grp in bals:
+            from app.domain.schedule import working_days as _wd
+            if kind in ("half_am", "half_pm"):
+                req_days = 0.5
+            elif grp in repo._CALENDAR_DAY_GROUPS:
+                req_days = (end - start).days + 1
+            else:
+                req_days = _wd(cfg, start, end)
+            rem = bals[grp]["remaining"]
+            if req_days > rem + 1e-9:
+                raise HTTPException(400, f"{bals[grp]['label']} 잔여 부족: 잔여 {rem}일, 필요 {req_days}일")
     days = leave_engine.deduct_days(cfg, kind, start, end)
     r = repo.create_leave(emp["id"], kind, start, end, days, reason=reason)
     # 구글 캘린더 동기화(설정된 경우에만) — 실패해도 신청은 유지

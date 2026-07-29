@@ -136,7 +136,8 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
   <!-- 연차 -->
   <div id="tab-lv" class="hidden">
     <div class="card">
-      <h2>연차 신청 <span style="font-weight:400;color:var(--muted);font-size:12px">· 승인 없이 즉시 반영</span></h2>
+      <h2>휴가 신청 <span style="font-weight:400;color:var(--muted);font-size:12px">· 승인 없이 즉시 반영</span></h2>
+      <div id="lv-balances"></div>
       <div class="row3">
         <div class="field"><label class="fl">종류</label><select id="lv-kind">
           <optgroup label="연차">
@@ -259,7 +260,11 @@ function maps(){const rec={},lv={};(DATA.records||[]).forEach(r=>rec[r.date]=r);
   (DATA.leaves||[]).forEach(l=>{let d=new Date(l.start+'T00:00'),e=new Date(l.end+'T00:00');for(;d<=e;d.setDate(d.getDate()+1))lv[iso(d)]=l.kind;});
   return {rec,lv};}
 const TYPE={office:['출','bg-work'],remote:['재','bg-remote'],field:['외','bg-field']};
-const LV={annual:['연차','bg-off'],half_am:['오전반차','bg-off'],half_pm:['오후반차','bg-off']};
+const LV={annual:['연차','bg-off'],half_am:['오전반차','bg-off'],half_pm:['오후반차','bg-off'],
+  sabbatical:['안식휴가','bg-off'],family_care:['가족돌봄','bg-off'],family_care_paid:['가족돌봄(유급)','bg-off'],family_care_unpaid:['가족돌봄(무급)','bg-off'],refresh:['리프레쉬','bg-off'],bd:['BD','bg-off'],
+  seollal:['설날','bg-off'],chuseok:['추석','bg-off'],health:['건강휴가','bg-off'],
+  health_check_am:['검진(오전)','bg-off'],health_check_pm:['검진(오후)','bg-off'],health_check_full:['건강검진','bg-off'],
+  birthday_am:['생일(오전)','bg-off'],birthday_pm:['생일(오후)','bg-off'],birthday_full:['생일','bg-off']};
 
 const WTN={normal:'일반근무',flex:'시차근무',selective:'선택적근무',elastic:'탄력근무'};
 function renderWorktime(){const w=DATA.worktime;const el=$('wt-panel');if(!el)return;
@@ -332,6 +337,8 @@ $('ot-submit').addEventListener('click',async()=>{const msg=$('ot-msg');
 /* 휴가 */
 const SINGLE_LV=['half_am','half_pm','health_check_am','health_check_pm','birthday_am','birthday_pm'];
 async function loadLeave(){try{const d=await api('/api/my/leave');const P={applied:['확정','p-ok'],cancelled:['취소','p-cx']};
+  const bals=d.balances||[];const lb=$('lv-balances');
+  if(lb)lb.innerHTML=bals.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+bals.map(b=>`<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:7px 11px;font-size:12px"><b>${b.label}</b> 잔여 <b style="color:#0369a1">${b.remaining}</b>/${b.granted}일 <span style="color:var(--muted)">(사용 ${b.used})</span></div>`).join('')+'</div>':'';
   $('lv-body').innerHTML=d.rows.length?d.rows.map(r=>{const [lb,c]=P[r.status]||['확정','p-ok'];
     const per=r.start===r.end?r.start:(r.start+' ~ '+r.end);
     const cancel=r.status==='applied'?`<button class="btn btn-g" style="padding:4px 10px" onclick="cancelLeave(${r.id})">취소</button>`:'';
@@ -362,6 +369,7 @@ const LV_TYPES=[
   {key:'birthday',name:'생일 휴가',fields:['hours']},
   {key:'health',name:'건강휴가',fields:['quota'],unit:'일'},
   {key:'sabbatical',name:'안식휴가',fields:['quota'],unit:'일'},
+  {key:'refresh',name:'리프레쉬 휴가',fields:['quota'],unit:'일'},
   {key:'health_check',name:'건강검진',fields:['hours']},
 ];
 let LV_CFG={};
@@ -383,7 +391,8 @@ function buildLeaveOptions(cfg){const on=k=>cfg[k]&&cfg[k].on;const g=[['연차'
   if(on('bd'))sp.push(['bd','BD'+(cfg.bd.hours?` (${cfg.bd.hours}h/${cfg.bd.cycle||2}주)`:'')]);
   if(on('seollal'))sp.push(['seollal',`설날 휴가 (${cfg.seollal.hours||8}h)`]);
   if(on('chuseok'))sp.push(['chuseok',`추석 휴가 (${cfg.chuseok.hours||8}h)`]);
-  if(on('family_care'))sp.push(['family_care',`가족돌봄 휴가 (${cfg.family_care.paid||'유급'})`]);
+  if(on('family_care')){sp.push(['family_care_paid','가족돌봄(유급)']);sp.push(['family_care_unpaid','가족돌봄(무급)']);}
+  if(on('refresh'))sp.push(['refresh','리프레쉬 휴가']);
   if(on('health'))sp.push(['health','건강휴가']);
   if(on('sabbatical'))sp.push(['sabbatical','안식휴가']);
   if(on('health_check')){if((cfg.health_check.hours||8)==8)sp.push(['health_check_full','건강검진 (8h)']);else{sp.push(['health_check_am','건강검진 (오전 4h)']);sp.push(['health_check_pm','건강검진 (오후 4h)']);}}

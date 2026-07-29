@@ -240,6 +240,67 @@ def create_leave(employee_id: str, kind: str, start: date, end: date, days: floa
                 "balance_after": e.leave_balance}
 
 
+# 일(day) 단위로 부여·차감하는 휴가 그룹(당해년도 사용가능 일수)
+_DAY_LEAVE_GROUPS = {
+    "annual": (["annual", "half_am", "half_pm"], "연차"),
+    "family_care": (["family_care", "family_care_paid", "family_care_unpaid"], "가족돌봄 휴가"),
+    "health": (["health"], "건강휴가"),
+    "sabbatical": (["sabbatical"], "안식휴가"),
+    "refresh": (["refresh"], "리프레쉬 휴가"),
+}
+_HALF_LEAVE_KINDS = {"half_am", "half_pm"}
+# 워킹데이가 아니라 달력 일수(주말 포함)로 세는 그룹 — 안식휴가
+_CALENDAR_DAY_GROUPS = {"sabbatical"}
+
+
+def _leave_group_of(kind: str) -> str | None:
+    for g, (kinds, _) in _DAY_LEAVE_GROUPS.items():
+        if kind in kinds:
+            return g
+    return None
+
+
+def leave_used_days(employee_id: str, group: str, year: int | None = None) -> float:
+    """당해년도 특정 그룹의 사용 일수."""
+    from app.domain.schedule import working_days
+    if year is None:
+        year = date.today().year
+    ys, ye = date(year, 1, 1), date(year, 12, 31)
+    cfg = work_config(employee_id)
+    kinds = _DAY_LEAVE_GROUPS[group][0]
+    used = 0.0
+    with session_scope() as s:
+        rows = s.scalars(select(LeaveRequest).where(
+            LeaveRequest.employee_id == employee_id, LeaveRequest.kind.in_(kinds),
+            LeaveRequest.start <= ye, LeaveRequest.end >= ys)).all()
+        cal = group in _CALENDAR_DAY_GROUPS
+        for l in rows:
+            if l.kind in _HALF_LEAVE_KINDS:
+                used += 0.5
+            elif cal:  # 안식휴가 등: 주말 포함 달력 일수
+                used += (min(l.end, ye) - max(l.start, ys)).days + 1
+            else:
+                used += working_days(cfg, max(l.start, ys), min(l.end, ye))
+    return round(used, 2)
+
+
+def leave_balances(employee_id: str) -> list[dict]:
+    """휴가 관리에서 켠 '일 단위' 휴가의 부여/사용/잔여(일)."""
+    cfg = work_config(employee_id)
+    lc = cfg.get("leave_config") or {}
+    out = []
+    for g, (_, label) in _DAY_LEAVE_GROUPS.items():
+        conf = lc.get(g) or {}
+        on = conf.get("on", True) if g == "annual" else conf.get("on", False)
+        if not on:
+            continue
+        granted = float(conf.get("quota") or 0)
+        used = leave_used_days(employee_id, g)
+        out.append({"group": g, "label": label, "granted": granted,
+                    "used": used, "remaining": round(granted - used, 2)})
+    return out
+
+
 def my_leaves(employee_id: str, limit: int = 30) -> list[dict]:
     """본인 연차 신청 내역(최근순)."""
     with session_scope() as s:

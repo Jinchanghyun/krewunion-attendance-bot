@@ -14,7 +14,9 @@ LEAVE_UNIT = {"annual": 1.0, "half_am": 0.5, "half_pm": 0.5}
 # 표시 라벨(연차 + 특수 휴가). 특수 휴가는 연차 잔여를 차감하지 않는다(별도 부여).
 LEAVE_LABEL = {
     "annual": "연차", "half_am": "오전반차", "half_pm": "오후반차",
-    "sabbatical": "안식휴가", "family_care": "가족돌봄 휴가", "bd": "BD",
+    "sabbatical": "안식휴가", "family_care": "가족돌봄 휴가",
+    "family_care_paid": "가족돌봄(유급)", "family_care_unpaid": "가족돌봄(무급)",
+    "refresh": "리프레쉬 휴가", "bd": "BD",
     "seollal": "설날 휴가", "chuseok": "추석 휴가",
     "health_check_am": "건강검진(오전 4h)", "health_check_pm": "건강검진(오후 4h)",
     "health_check_full": "건강검진(8h)", "health": "건강휴가",
@@ -23,7 +25,8 @@ LEAVE_LABEL = {
 
 # 연차 잔여 미차감 특수 휴가
 SPECIAL_LEAVES = {
-    "sabbatical", "family_care", "bd", "health", "seollal", "chuseok",
+    "sabbatical", "family_care", "family_care_paid", "family_care_unpaid",
+    "refresh", "bd", "health", "seollal", "chuseok",
     "health_check_am", "health_check_pm", "health_check_full",
     "birthday_am", "birthday_pm", "birthday_full",
 }
