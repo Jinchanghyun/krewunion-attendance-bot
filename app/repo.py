@@ -655,6 +655,23 @@ POSITION_ROLE = {
 _DEFAULT_POSITION = "전임 스탭"   # '일반' 대체 — 기본/강등 시 직책
 APPROVER_POSITIONS = ("사무장",)          # 연장·휴일근무 승인권자
 
+# 표시 정렬 순서: 지회장→수석부지회장→사무장→부지회장→부서 부장들→전임 스탭
+_POSITION_SORT = ("지회장", "수석부지회장", "사무장", "부지회장",
+                  "조직부장", "정책홍보부장", "재무운영부장", "대외협력부장", "전임 스탭")
+
+
+def _pos_rank(pos: str) -> int:
+    try:
+        return _POSITION_SORT.index(pos)
+    except ValueError:
+        return len(_POSITION_SORT)
+
+
+def _by_position(employees):
+    """직책 순서 → 이름 순 정렬."""
+    return sorted(employees, key=lambda e: (_pos_rank(getattr(e, "position", "") or ""),
+                                            getattr(e, "name", "") or ""))
+
 
 def approvers() -> list[dict]:
     """승인권자(사무장) 목록 — 승인 요청 알림 대상."""
@@ -789,7 +806,7 @@ def list_all_employees() -> list[dict]:
                  "company": getattr(e, "company", None) or "",
                  "dept": e.dept, "role": e.role,
                  "position": getattr(e, "position", _DEFAULT_POSITION), "slack": e.slack_user_id}
-                for e in s.scalars(select(Employee).order_by(Employee.dept, Employee.name)).all()]
+                for e in _by_position(s.scalars(select(Employee)).all())]
 
 
 def role_of(slack_user_id: str) -> str:
@@ -929,7 +946,7 @@ def stats_by_employee(month: str) -> dict:
     yy, mm = int(month[:4]), int(month[5:7])
     rows = []
     with session_scope() as s:
-        for e in s.scalars(select(Employee)).all():
+        for e in _by_position(s.scalars(select(Employee)).all()):
             recs = s.scalars(select(AttendanceRecord).where(
                 AttendanceRecord.employee_id == e.id,
                 AttendanceRecord.date >= start, AttendanceRecord.date <= end)).all()
@@ -955,7 +972,7 @@ def live_status(status: str | None = None, dept: str | None = None) -> dict:
     today = date.today()
     rows = []
     with session_scope() as s:
-        for e in s.scalars(select(Employee)).all():
+        for e in _by_position(s.scalars(select(Employee)).all()):
             if dept and e.dept != dept:
                 continue
             st = today_state(e.id)["status"]
