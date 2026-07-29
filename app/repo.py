@@ -357,8 +357,9 @@ def leave_balances(employee_id: str) -> list[dict]:
     for g, (_, label) in _HOUR_LEAVE_GROUPS.items():
         if not (lc.get(g) or {}).get("on", False):
             continue
-        out.append({"group": g, "label": label, "unit": "시간",
-                    "used": leave_used_hours(employee_id, g)})
+        used_days = round(leave_used_hours(employee_id, g) / 8.0, 2)  # 4시간=0.5일
+        out.append({"group": g, "label": label, "unit": "일",
+                    "used": used_days, "used_only": True})
     return out
 
 
@@ -394,7 +395,7 @@ def stats_leave_types(year: int) -> dict:
 def all_leave_balances() -> dict:
     """관리자용 — 전체 구성원의 휴가 부여/사용/잔여(일·시간 단위 전체)."""
     groups = [{"group": g, "label": lbl, "unit": "일"} for g, (_, lbl) in _DAY_LEAVE_GROUPS.items()]
-    groups += [{"group": g, "label": lbl, "unit": "시간"} for g, (_, lbl) in _HOUR_LEAVE_GROUPS.items()]
+    groups += [{"group": g, "label": lbl, "unit": "일"} for g, (_, lbl) in _HOUR_LEAVE_GROUPS.items()]
     rows = []
     for e in list_all_employees():
         bmap = {b["group"]: b for b in leave_balances(e["id"])}

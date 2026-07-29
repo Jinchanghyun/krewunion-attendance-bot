@@ -29,7 +29,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1
 .kpi .sub{font-size:11px;color:var(--muted);margin-top:2px;}
 .grid{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start;}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:16px;}
-.card h2{font-size:14px;margin:0 0 12px;font-weight:700;}
+.card h2{font-size:15.5px;margin:0 0 12px;font-weight:700;}
 .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
 .chip{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:4px 11px;font-size:12px;cursor:pointer;}
 .chip.on{background:var(--brand);border-color:var(--brand);color:#fff;}
@@ -277,12 +277,12 @@ async function loadLeaveStats(){
     const j=await r.json();
     if(!r.ok){ el.innerHTML='<div class="empty">불러오기 실패: '+(j.detail||('HTTP '+r.status))+'</div>'; return; }
     const gs=j.groups||[];
-    const head='<tr><th>구성원</th>'+gs.map(g=>`<th class="num">${g.label}${g.unit==='시간'?'(h)':''}</th>`).join('')+'</tr>';
+    const head='<tr><th>구성원</th>'+gs.map(g=>`<th class="num">${g.label}</th>`).join('')+'</tr>';
     const body=(j.rows||[]).map(row=>{
       const nm=row.name+(row.display_name&&row.display_name!==row.name?` <span style="color:var(--muted);font-size:11px">(${row.display_name})</span>`:'');
       const cells=gs.map(g=>{const b=row.balances[g.group];
         if(!b)return '<td class="num" style="color:var(--muted)">—</td>';
-        if(g.unit==='시간')return `<td class="num">사용 ${b.used}</td>`;
+        if(b.used_only)return `<td class="num">사용 ${b.used}일</td>`;
         return `<td class="num"><b style="color:${b.remaining<0?'#dc2626':'#0369a1'}">${b.remaining}</b>/${b.granted} <span style="color:var(--muted);font-size:11px">(${b.used})</span></td>`;}).join('');
       return `<tr><td>${nm}</td>${cells}</tr>`;
     }).join('');
