@@ -55,6 +55,21 @@ def healthz():
     return {"ok": True}
 
 
+@api.get("/setup")
+def setup(key: str = ""):
+    """일회성 초기 설정 — DB 테이블 생성 + 샘플 데이터 + 관리자 토큰 발급.
+    보안: JWT_SECRET을 key로 요구하고, 이미 데이터가 있으면 다시 넣지 않는다.
+    실제 운영 데이터가 쌓이기 시작하면 이 엔드포인트는 재시드하지 않는다."""
+    if key != settings.JWT_SECRET:
+        raise HTTPException(403, "잘못된 key 입니다.")
+    import jwt
+    from app import seed
+    seeded = seed.seed_demo()
+    token = jwt.encode({"slack_user_id": "U3001"}, settings.JWT_SECRET, algorithm="HS256")
+    return {"seeded": seeded, "token": token,
+            "다음": "위 token 값을 복사해 대시보드 상단 토큰 칸에 붙여넣고 '불러오기'를 누르세요."}
+
+
 # ── 인증: 관리자(인사담당자/시스템관리자)만 통계 접근 ──
 def require_admin(authorization: str = Header(default="")) -> dict:
     """JWT 검증. 토큰의 slack_user_id로 역할을 확인해 hr/sysadmin만 허용."""

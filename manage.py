@@ -56,12 +56,20 @@ def list_employees(_args):
             print(f"{e.id}\t{e.slack_user_id}\t{e.name}\t{e.dept}\t{e.role}")
 
 
+def seed_demo(_args):
+    """샘플 직원·출퇴근·연차·승인 데이터를 넣어 대시보드 통계를 바로 확인.
+    DATABASE_URL을 클라우드(Neon 등)로 설정하고 실행하면 그 DB에 저장된다."""
+    import demo
+    demo.seed()
+    print("샘플 데이터 시드 완료 (직원·출퇴근·연차·승인). 대시보드에서 통계가 보입니다.")
+
+
 CMDS = {"initdb": initdb, "add-employee": add_employee,
         "bootstrap-admin": bootstrap_admin, "issue-token": issue_token,
-        "list-employees": list_employees}
+        "list-employees": list_employees, "seed-demo": seed_demo}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in CMDS:
-        print("사용법: initdb | add-employee | bootstrap-admin | issue-token | list-employees")
+        print("사용법: initdb | add-employee | bootstrap-admin | issue-token | list-employees | seed-demo")
         sys.exit(1)
     CMDS[sys.argv[1]](sys.argv[2:])
