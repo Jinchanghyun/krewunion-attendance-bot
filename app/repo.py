@@ -325,6 +325,19 @@ def leave_balances(employee_id: str) -> list[dict]:
     return out
 
 
+def all_leave_balances() -> dict:
+    """관리자용 — 전체 구성원의 일 단위 휴가 부여/사용/잔여."""
+    groups = [{"group": g, "label": lbl} for g, (_, lbl) in _DAY_LEAVE_GROUPS.items()]
+    rows = []
+    for e in list_all_employees():
+        bmap = {b["group"]: b for b in leave_balances(e["id"])}
+        rows.append({"id": e["id"], "name": e["name"],
+                     "display_name": e.get("display_name", ""),
+                     "dept": e["dept"], "position": e.get("position", ""),
+                     "balances": bmap})
+    return {"groups": groups, "rows": rows}
+
+
 def my_leaves(employee_id: str, limit: int = 30) -> list[dict]:
     """본인 연차 신청 내역(최근순)."""
     with session_scope() as s:
@@ -413,16 +426,11 @@ def my_month(employee_id: str, month: str) -> dict:
     from app.domain import worktime as _wt
     yy, mm = int(month[:4]), int(month[5:7])
     wt = _wt.monthly_summary(cfg, records, leaves, yy, mm, approved_ot_min=approved_ot)
-    # 월 연장근로 승인 요청 가능 여부(선택적 근무: 월초 1~7일, 지난달분)
-    today = date.today()
-    can_req = False
-    if wt["work_type"] == "selective" and wt["pending_ot_min"] > 0:
-        prev = today.replace(day=1) - timedelta(days=1)
-        prev_month = f"{prev.year}-{prev.month:02d}"
-        can_req = (1 <= today.day <= 7) and (month == prev_month)
-    wt["can_request_ot"] = can_req
-    wt["ot_window_note"] = "월초(1~7일)에 지난달 연장근로를 신청할 수 있습니다." \
-        if wt["work_type"] == "selective" else ""
+    # 선택적 근무는 소정 충족 시 남은 날 자동 데이오프 + 초과근무는 사전 승인(시간외근무 탭)
+    # 으로 처리하므로 월초 사후 승인 절차는 두지 않는다.
+    wt["can_request_ot"] = False
+    wt["ot_window_note"] = "초과근무는 시간외근무 탭에서 사전 승인 후 인정됩니다." \
+        if wt["work_type"] in ("selective", "flex") else ""
     return {"month": month, "records": records, "leaves": leaves,
             "config": cfg, "summary": summary, "worktime": wt}
 

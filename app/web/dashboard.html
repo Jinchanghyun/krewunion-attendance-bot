@@ -95,6 +95,7 @@ tbody tr:last-child td{border-bottom:none;}
         <p>시스템관리자 전용 · <span id="mode"></span></p></div>
     </div>
     <div class="conf">
+      <button onclick="openLeaveStats()" style="background:#fff;border:1px solid var(--brand);color:var(--brand)">휴가 통계</button>
       <button onclick="goToMe()" style="background:#fff;border:1px solid var(--brand);color:var(--brand)">근무일정 관리</button>
       <!-- API 주소·토큰은 매직 링크에서 자동 입력되므로 숨김(값은 JS가 사용) -->
       <input id="api" type="hidden">
@@ -136,6 +137,14 @@ tbody tr:last-child td{border-bottom:none;}
         <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
           <tbody id="emp-body"></tbody></table>
       </div>
+    </div>
+  </div>
+
+  <!-- 휴가 통계 팝업 -->
+  <div id="leaveStatsModal" class="modal-bg" onclick="if(event.target===this)closeLeaveStats()">
+    <div class="modal" style="max-width:760px">
+      <div class="modal-head"><h2>휴가 통계 (전체 구성원)</h2><button class="x" onclick="closeLeaveStats()">✕</button></div>
+      <div id="ls-body"></div>
     </div>
   </div>
 
@@ -227,6 +236,27 @@ function renderLive(rows){
 window.toggleLive=()=>{ liveExpanded=!liveExpanded; renderLive(window._live||[]); };
 window.openAppr=()=>{ $('apprModal').classList.add('show'); };
 window.closeAppr=()=>{ $('apprModal').classList.remove('show'); };
+window.closeLeaveStats=()=>{ $('leaveStatsModal').classList.remove('show'); };
+window.openLeaveStats=async()=>{
+  const base=$('api').value.trim(), tok=$('tok').value.trim();
+  $('leaveStatsModal').classList.add('show');
+  const el=$('ls-body'); el.innerHTML='<div class="empty">불러오는 중…</div>';
+  try{
+    const r=await fetch(base+'/api/leave-stats',{headers:{Authorization:'Bearer '+tok}});
+    const j=await r.json();
+    if(!r.ok){ el.innerHTML='<div class="empty">불러오기 실패: '+(j.detail||('HTTP '+r.status))+'</div>'; return; }
+    const gs=j.groups||[];
+    const head='<tr><th>구성원</th><th>부서</th>'+gs.map(g=>`<th class="num">${g.label}</th>`).join('')+'</tr>';
+    const body=(j.rows||[]).map(row=>{
+      const nm=row.name+(row.display_name&&row.display_name!==row.name?` <span style="color:var(--muted);font-size:11px">(${row.display_name})</span>`:'');
+      const cells=gs.map(g=>{const b=row.balances[g.group];
+        return b?`<td class="num"><b style="color:${b.remaining<0?'#dc2626':'#0369a1'}">${b.remaining}</b>/${b.granted} <span style="color:var(--muted);font-size:11px">(${b.used})</span></td>`:'<td class="num" style="color:var(--muted)">—</td>';}).join('');
+      return `<tr><td>${nm}</td><td>${row.dept}</td>${cells}</tr>`;
+    }).join('');
+    el.innerHTML=`<div style="overflow-x:auto"><table><thead>${head}</thead><tbody>${body||'<tr><td class="empty" colspan="7">구성원이 없습니다</td></tr>'}</tbody></table></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">셀 = 잔여/부여 (괄호=사용, 단위 일). 각자 휴가 관리에서 켜고 수량을 입력한 항목만 표시됩니다.</div>`;
+  }catch(e){ el.innerHTML='<div class="empty">불러오기 실패: '+e+'</div>'; }
+};
 function renderMonthly(m){
   $('mon-label').textContent='· '+m.month;
   const data=[m.worked,m.overtime,m.night,m.holiday].map(x=>Math.round(x));

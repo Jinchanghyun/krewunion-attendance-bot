@@ -328,6 +328,12 @@ def stats_overview(_: dict = Depends(require_admin)):
     return repo.stats_overview()
 
 
+@api.get("/api/leave-stats")
+def leave_stats(_: dict = Depends(require_admin)):
+    """전체 구성원 휴가 부여/사용/잔여(관리자)."""
+    return repo.all_leave_balances()
+
+
 @api.get("/api/stats/monthly")
 def stats_monthly(month: str, _: dict = Depends(require_admin)):
     return repo.stats_monthly(month)
