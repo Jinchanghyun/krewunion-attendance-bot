@@ -294,8 +294,7 @@ function renderWorktime(){const w=DATA.worktime;const el=$('wt-panel');if(!el)re
   }
   el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     ${box('근무제도',WTN[w.work_type]||w.work_type)}
-    ${box('월 소정근로 / 실+휴가',hh(w.scheduled_min)+' / '+hh(w.fulfilled_min))}
-    ${box('실근로',hh(w.actual_min))}
+    ${box('월 소정근로 / 실근로',hh(w.scheduled_min)+' / '+hh(w.actual_min))}
     ${box('휴가 사용',hh(w.leave_min))}
     ${box('연장근로(승인)',ot,w.overtime_min?'color:#dc2626':'')}
   </div>${pend}`;
