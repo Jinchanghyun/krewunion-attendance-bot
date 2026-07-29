@@ -125,7 +125,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
   <main class="main">
     <div class="topbar">
       <h1 id="page-title">홈</h1>
-      <div class="topbar-r">총 직원수 <b id="tot-emp" style="color:#111827">—</b> · <span id="mode"></span>
+      <div class="topbar-r">총 인원수 <b id="tot-emp" style="color:#111827">—</b> · <span id="mode"></span>
         <button onclick="goToMe()">근무일정 관리</button></div>
     </div>
 
@@ -179,7 +179,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
           <span class="chip on" data-s="">전체</span><span class="chip" data-s="work">근무중</span>
           <span class="chip" data-s="remote">재택</span><span class="chip" data-s="field">외근</span><span class="chip" data-s="off">휴가</span>
         </div>
-        <table><thead><tr><th>직원</th><th>부서</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
+        <table><thead><tr><th>직원</th><th>부서</th><th>근무제도</th><th>근무시간</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
         <div class="more-btn" id="live-more" onclick="toggleLive()" style="display:none"></div>
       </div>
     </section>
@@ -202,7 +202,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
           <div class="scroll-area"><table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead><tbody id="emp-body"></tbody></table></div>
         </div>
       </div>
-      <div class="card"><h2>월 휴가유형별 통계 <span id="lt-label" style="color:var(--muted);font-weight:400"></span></h2><div id="lt-body"></div></div>
+      <div class="card"><h2>연 휴가유형별 통계 <span id="lt-label" style="color:var(--muted);font-weight:400"></span></h2><div id="lt-body"></div></div>
     </section>
   </main>
 </div>
@@ -255,7 +255,7 @@ function renderOverview(o){
 }
 function renderMiss(rows){const el=$('miss-body');if(!el)return;
   const miss=(rows||[]).filter(r=>r.status==='none');
-  el.innerHTML=miss.length?'<table><tbody>'+miss.map(r=>`<tr><td>${r.name}</td><td style="color:var(--muted)">${r.dept}</td><td><span class="badge b-none">미출근</span></td></tr>`).join('')+'</tbody></table>':'<div class="empty">누락(미출근) 인원이 없습니다</div>';
+  el.innerHTML=miss.length?'<table><tbody>'+miss.map(r=>{const nm=r.name+(r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:11px">(${r.display_name})</span>`:'');return `<tr><td>${nm}</td><td style="color:var(--muted)">${r.dept}</td><td><span class="badge b-none">미출근</span></td></tr>`;}).join('')+'</tbody></table>':'<div class="empty">누락(미출근) 인원이 없습니다</div>';
 }
 function renderPerm(rows){const el=$('perm-body');if(!el)return;
   const by={};(rows||[]).forEach(r=>{const p=r.position||'전임 스탭';(by[p]=by[p]||[]).push(r);});
@@ -277,20 +277,22 @@ async function loadLeaveStats(){
     const j=await r.json();
     if(!r.ok){ el.innerHTML='<div class="empty">불러오기 실패: '+(j.detail||('HTTP '+r.status))+'</div>'; return; }
     const gs=j.groups||[];
-    const head='<tr><th>구성원</th><th>부서</th>'+gs.map(g=>`<th class="num">${g.label}</th>`).join('')+'</tr>';
+    const head='<tr><th>구성원</th>'+gs.map(g=>`<th class="num">${g.label}${g.unit==='시간'?'(h)':''}</th>`).join('')+'</tr>';
     const body=(j.rows||[]).map(row=>{
       const nm=row.name+(row.display_name&&row.display_name!==row.name?` <span style="color:var(--muted);font-size:11px">(${row.display_name})</span>`:'');
       const cells=gs.map(g=>{const b=row.balances[g.group];
-        return b?`<td class="num"><b style="color:${b.remaining<0?'#dc2626':'#0369a1'}">${b.remaining}</b>/${b.granted} <span style="color:var(--muted);font-size:11px">(${b.used})</span></td>`:'<td class="num" style="color:var(--muted)">—</td>';}).join('');
-      return `<tr><td>${nm}</td><td>${row.dept}</td>${cells}</tr>`;
+        if(!b)return '<td class="num" style="color:var(--muted)">—</td>';
+        if(g.unit==='시간')return `<td class="num">사용 ${b.used}</td>`;
+        return `<td class="num"><b style="color:${b.remaining<0?'#dc2626':'#0369a1'}">${b.remaining}</b>/${b.granted} <span style="color:var(--muted);font-size:11px">(${b.used})</span></td>`;}).join('');
+      return `<tr><td>${nm}</td>${cells}</tr>`;
     }).join('');
     el.innerHTML=`<div style="overflow-x:auto"><table><thead>${head}</thead><tbody>${body||'<tr><td class="empty">구성원이 없습니다</td></tr>'}</tbody></table></div>`;
   }catch(e){ el.innerHTML='<div class="empty">불러오기 실패: '+e+'</div>'; }
 }
 async function loadLeaveTypes(){const el=$('lt-body');if(!el)return;el.innerHTML='<div class="empty">불러오는 중…</div>';
-  const base=$('api').value.trim(), tok=$('tok').value.trim();
-  try{const r=await fetch(base+'/api/stats/leave-types?month='+MONTH,{headers:{Authorization:'Bearer '+tok}});const j=await r.json();
-    const lab=$('lt-label'); if(lab)lab.textContent='· '+MONTH;
+  const base=$('api').value.trim(), tok=$('tok').value.trim(); const YEAR=new Date().getFullYear();
+  try{const r=await fetch(base+'/api/stats/leave-types?year='+YEAR,{headers:{Authorization:'Bearer '+tok}});const j=await r.json();
+    const lab=$('lt-label'); if(lab)lab.textContent='· '+YEAR+'년';
     const rows=j.rows||[];
     el.innerHTML=rows.length?'<table><thead><tr><th>휴가 종류</th><th class="num">건수</th><th class="num">일수</th></tr></thead><tbody>'+rows.map(x=>`<tr><td>${x.label}</td><td class="num">${x.count}</td><td class="num">${x.days}</td></tr>`).join('')+'</tbody></table>':'<div class="empty">이 달 휴가 사용이 없습니다</div>';
   }catch(e){el.innerHTML='<div class="empty">불러오기 실패</div>';}
@@ -309,8 +311,11 @@ function renderLive(rows){
   const show=liveExpanded?f:f.slice(0,LIVE_LIMIT);
   $('live-body').innerHTML = show.length? show.map(r=>{
     const [lbl,cls]=SB[r.status]||SB.none;
-    return `<tr><td>${r.name}</td><td>${r.dept}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
-  }).join('') : '<tr><td colspan="3" class="empty">해당 상태의 직원이 없습니다</td></tr>';
+    const wt={normal:'일반근무',flex:'시차근무',selective:'선택적근무',elastic:'탄력근무'}[r.work_type]||'일반근무';
+    const hrs=(r.checkin||'09:00')+'~'+(r.checkout||'18:00');
+    const nm=r.name+(r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:11px">(${r.display_name})</span>`:'');
+    return `<tr><td>${nm}</td><td>${r.dept}</td><td>${wt}</td><td style="color:var(--muted)">${hrs}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
+  }).join('') : '<tr><td colspan="5" class="empty">해당 상태의 직원이 없습니다</td></tr>';
   const more=$('live-more');
   if(more){ if(f.length>LIVE_LIMIT){ more.style.display='block'; more.textContent=liveExpanded?'▲ 접기':`▼ 전체 ${f.length}명 보기`; } else more.style.display='none'; }
 }

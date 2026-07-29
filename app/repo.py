@@ -277,6 +277,37 @@ _HALF_LEAVE_KINDS = {"half_am", "half_pm"}
 # 워킹데이가 아니라 달력 일수(주말 포함)로 세는 그룹 — 안식휴가
 _CALENDAR_DAY_GROUPS = {"sabbatical"}
 
+# 시간(시간) 단위 휴가 그룹 — 사용 시간으로 표시
+_HOUR_LEAVE_GROUPS = {
+    "bd": (["bd"], "BD"),
+    "seollal": (["seollal"], "설날"),
+    "chuseok": (["chuseok"], "추석"),
+    "birthday": (["birthday_full", "birthday_am", "birthday_pm"], "생일"),
+    "health_check": (["health_check_full", "health_check_am", "health_check_pm"], "건강검진"),
+}
+
+
+def leave_used_hours(employee_id: str, group: str, year: int | None = None) -> float:
+    """당해년도 시간 단위 휴가 사용(시간)."""
+    if year is None:
+        year = date.today().year
+    ys, ye = date(year, 1, 1), date(year, 12, 31)
+    lc = (work_config(employee_id).get("leave_config") or {})
+    kinds = _HOUR_LEAVE_GROUPS[group][0]
+    used = 0.0
+    with session_scope() as s:
+        rows = s.scalars(select(LeaveRequest).where(
+            LeaveRequest.employee_id == employee_id, LeaveRequest.kind.in_(kinds),
+            LeaveRequest.start <= ye, LeaveRequest.end >= ys)).all()
+        for l in rows:
+            if l.kind.endswith("_am") or l.kind.endswith("_pm"):
+                used += 4
+            elif group == "bd":
+                used += lc.get("bd", {}).get("hours", 4)
+            else:  # seollal·chuseok·*_full → 설정 시간(기본 8)
+                used += lc.get(group, {}).get("hours", 8)
+    return round(used, 1)
+
 
 def _leave_group_of(kind: str) -> str | None:
     for g, (kinds, _) in _DAY_LEAVE_GROUPS.items():
@@ -321,16 +352,21 @@ def leave_balances(employee_id: str) -> list[dict]:
             continue
         granted = float(conf.get("quota") or 0)
         used = leave_used_days(employee_id, g)
-        out.append({"group": g, "label": label, "granted": granted,
+        out.append({"group": g, "label": label, "unit": "일", "granted": granted,
                     "used": used, "remaining": round(granted - used, 2)})
+    for g, (_, label) in _HOUR_LEAVE_GROUPS.items():
+        if not (lc.get(g) or {}).get("on", False):
+            continue
+        out.append({"group": g, "label": label, "unit": "시간",
+                    "used": leave_used_hours(employee_id, g)})
     return out
 
 
-def stats_leave_types(month: str) -> dict:
-    """월 휴가유형별 통계(전체) — 종류별 건수·일수."""
+def stats_leave_types(year: int) -> dict:
+    """연 휴가유형별 통계(전체) — 종류별 건수·일수(당해년도)."""
     from app.domain.leave import LEAVE_LABEL
     from app.domain.schedule import FRI
-    start, end = _month_range(month)
+    start, end = date(year, 1, 1), date(year, 12, 31)
     half = {"half_am", "half_pm", "health_check_am", "health_check_pm",
             "birthday_am", "birthday_pm"}
     agg: dict = {}
@@ -352,12 +388,13 @@ def stats_leave_types(month: str) -> dict:
     out = [{"kind": k, "label": LEAVE_LABEL.get(k, k), "count": v[0],
             "days": round(v[1], 1)} for k, v in agg.items()]
     out.sort(key=lambda x: -x["days"])
-    return {"month": month, "rows": out}
+    return {"year": year, "rows": out}
 
 
 def all_leave_balances() -> dict:
-    """관리자용 — 전체 구성원의 일 단위 휴가 부여/사용/잔여."""
-    groups = [{"group": g, "label": lbl} for g, (_, lbl) in _DAY_LEAVE_GROUPS.items()]
+    """관리자용 — 전체 구성원의 휴가 부여/사용/잔여(일·시간 단위 전체)."""
+    groups = [{"group": g, "label": lbl, "unit": "일"} for g, (_, lbl) in _DAY_LEAVE_GROUPS.items()]
+    groups += [{"group": g, "label": lbl, "unit": "시간"} for g, (_, lbl) in _HOUR_LEAVE_GROUPS.items()]
     rows = []
     for e in list_all_employees():
         bmap = {b["group"]: b for b in leave_balances(e["id"])}
@@ -899,7 +936,14 @@ def live_status(status: str | None = None, dept: str | None = None) -> dict:
             st = today_state(e.id)["status"]
             if status and st != status:
                 continue
-            rows.append({"employee_id": e.id, "name": e.name, "dept": e.dept, "status": st})
+            wc = s.get(WorkConfig, e.id)
+            cfg = _config_dict(wc) if wc else None
+            rows.append({"employee_id": e.id, "name": e.name,
+                         "display_name": getattr(e, "display_name", None) or "",
+                         "dept": e.dept, "status": st,
+                         "work_type": (cfg or {}).get("work_type", "normal"),
+                         "checkin": (cfg or {}).get("checkin", "09:00"),
+                         "checkout": (cfg or {}).get("checkout", "18:00")})
     return {"filter": {"status": status, "dept": dept}, "rows": rows}
 
 

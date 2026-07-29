@@ -335,9 +335,10 @@ def leave_stats(_: dict = Depends(require_admin)):
 
 
 @api.get("/api/stats/leave-types")
-def stats_leave_types(month: str, _: dict = Depends(require_admin)):
-    """월 휴가유형별 통계(전체)."""
-    return repo.stats_leave_types(month)
+def stats_leave_types(year: int = 0, _: dict = Depends(require_admin)):
+    """연 휴가유형별 통계(전체)."""
+    from datetime import date as _d
+    return repo.stats_leave_types(year or _d.today().year)
 
 
 @api.get("/api/stats/monthly")
