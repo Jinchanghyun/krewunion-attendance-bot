@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>크루유니언 근태봇 · 관리자 통계</title>
+<title>크루유니언 근태봇 · 관리자 페이지</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <style>
 :root{color-scheme:light;--bg:#f4f6fb;--card:#fff;--ink:#111827;--muted:#6b7280;--line:#e5e7eb;
@@ -57,7 +57,7 @@ tbody tr:last-child td{border-bottom:none;}
 .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
 .modal-head h2{margin:0;font-size:15px;font-weight:700;}
 .modal-head .x{border:none;background:none;font-size:18px;cursor:pointer;color:var(--muted);line-height:1;}
-.scroll-area{max-height:360px;overflow-y:auto;}
+.scroll-area{height:230px;overflow-y:auto;}  /* 월 통계 차트와 높이 맞춤(약 5행) */
 .scroll-area thead th{position:sticky;top:0;background:var(--card);z-index:1;}
 .more-btn{text-align:center;padding:9px;margin-top:8px;border:1px dashed var(--line);border-radius:9px;color:var(--brand);font-size:12px;cursor:pointer;font-weight:600;}
 .more-btn:hover{background:var(--brand-soft);border-color:var(--brand);}
@@ -91,8 +91,8 @@ tbody tr:last-child td{border-bottom:none;}
           <path d="M40 33 L40 52 a12 12 0 0 0 24 0 L64 33" fill="none" stroke="#FDE006" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </div>
-      <div><h1>크루유니언 근태봇 · 관리자 통계</h1>
-        <p>인사담당자/시스템관리자 전용 · <span id="mode"></span></p></div>
+      <div><h1>크루유니언 근태봇 · 관리자 페이지</h1>
+        <p>시스템관리자 전용 · <span id="mode"></span></p></div>
     </div>
     <div class="conf">
       <button onclick="goToMe()" style="background:#fff;border:1px solid var(--brand);color:var(--brand)">근무일정 관리</button>
@@ -131,7 +131,7 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="chart-box"><canvas id="chart"></canvas></div>
     </div>
     <div class="card">
-      <h2>직원별 통계 (시간)</h2>
+      <h2>직원별 통계</h2>
       <div class="scroll-area">
         <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
           <tbody id="emp-body"></tbody></table>
@@ -233,9 +233,12 @@ function renderMonthly(m){
       scales:{y:{beginAtZero:true,grid:{color:'#eef0f4'}},x:{grid:{display:false}}}}});
 }
 function renderByEmp(rows){
-  $('emp-body').innerHTML=rows.map(r=>`<tr><td>${r.name}</td><td>${r.dept}</td>
+  let html=rows.map(r=>`<tr><td>${r.name}</td><td>${r.dept}</td>
     <td class="num">${H(r.worked)}</td><td class="num">${H(r.overtime)}</td>
     <td class="num">${H(r.night)}</td><td class="num">${H(r.holiday)}</td></tr>`).join('');
+  // 5행 미만이면 빈 행으로 채워 높이 유지(월 통계와 정렬)
+  for(let i=rows.length;i<5;i++) html+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>';
+  $('emp-body').innerHTML=html;
 }
 function renderPending(rows){
   $('appr-list').innerHTML = rows.length? rows.map(r=>`<div class="appr">
