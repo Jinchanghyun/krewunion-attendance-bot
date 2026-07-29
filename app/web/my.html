@@ -215,7 +215,9 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
       <div class="field"><label class="fl">출근</label><input type="time" id="ed-in" step="1800"></div>
       <div class="field"><label class="fl">퇴근</label><input type="time" id="ed-out" step="1800"></div>
     </div>
-    <div class="field" style="margin-top:8px"><label class="fl">자리비움 (30분 단위)</label><select id="ed-away"></select></div>
+    <div class="field" style="margin-top:8px"><label class="fl">자리비움 (선택, 30분 단위)</label>
+      <div style="display:flex;gap:8px;align-items:center"><input type="time" id="ed-away-from" step="1800" style="flex:1"><span style="color:var(--muted)">~</span><input type="time" id="ed-away-to" step="1800" style="flex:1"></div>
+    </div>
     <button class="btn btn-p" id="ed-save" style="margin-top:14px;width:100%">저장</button>
     <div id="ed-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
   </div>
@@ -315,15 +317,18 @@ function openEditDay(ds){editDate=ds;const {rec}=maps();const r=rec[ds];
   $('ed-kind').value=(r&&r.type)||'office';
   $('ed-in').value=(r&&r.checkin)||(CFG&&CFG.checkin)||'09:00';
   $('ed-out').value=(r&&r.checkout)||(CFG&&CFG.checkout)||'18:00';
-  if(!$('ed-away').options.length){let o='';for(let mm=0;mm<=480;mm+=30){const lab=mm===0?'없음':(mm>=60?(Math.floor(mm/60)+'시간'+(mm%60?' 30분':'')):'30분');o+=`<option value="${mm}">${lab}</option>`;}$('ed-away').innerHTML=o;}
-  $('ed-away').value='0';$('ed-msg').textContent='';
+  $('ed-away-from').value='';$('ed-away-to').value='';$('ed-msg').textContent='';
   $('edit-modal').style.display='flex';}
 document.getElementById('calgrid').addEventListener('click',e=>{const c=e.target.closest('[data-d]');if(c)openEditDay(c.dataset.d);});
-document.getElementById('ed-kind').addEventListener('change',()=>{const off=$('ed-kind').value==='dayoff';['ed-in','ed-out','ed-away'].forEach(id=>{$(id).disabled=off;$(id).style.opacity=off?.4:1;});});
+document.getElementById('ed-kind').addEventListener('change',()=>{const off=$('ed-kind').value==='dayoff';['ed-in','ed-out','ed-away-from','ed-away-to'].forEach(id=>{$(id).disabled=off;$(id).style.opacity=off?.4:1;});});
+const _hm=t=>{if(!t)return null;const[a,b]=t.split(':');return (+a)*60+(+b);};
 document.getElementById('ed-save').addEventListener('click',async()=>{const msg=$('ed-msg');
   const ci=$('ed-in').value,co=$('ed-out').value;
   if(!ci){msg.style.color='#dc2626';msg.textContent='출근 시간을 입력하세요.';return;}
-  try{await api('/api/my/attendance/edit',{method:'POST',body:JSON.stringify({date:editDate,kind:$('ed-kind').value,checkin:ci,checkout:co||null,away_min:+$('ed-away').value})});
+  const af=_hm($('ed-away-from').value),at=_hm($('ed-away-to').value);
+  let away=0;
+  if(af!=null&&at!=null){ if(at<=af){msg.style.color='#dc2626';msg.textContent='자리비움 종료가 시작보다 늦어야 합니다.';return;} away=at-af; }
+  try{await api('/api/my/attendance/edit',{method:'POST',body:JSON.stringify({date:editDate,kind:$('ed-kind').value,checkin:ci,checkout:co||null,away_min:away})});
     closeEdit();loadMonth();
   }catch(e){msg.style.color='#dc2626';msg.textContent='저장 실패: '+e;}});
 
