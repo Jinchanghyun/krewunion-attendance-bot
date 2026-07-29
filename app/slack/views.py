@@ -53,35 +53,56 @@ def home_view(emp: dict, state: dict) -> dict:
     """홈 탭. state: {"status": "none|work|remote|field|off", "worked": "2시간 10분"}"""
     status_label = {"none": "미출근", "work": "근무중", "remote": "재택근무 중",
                     "field": "외근 중", "off": "휴가"}.get(state["status"], "미출근")
-    blocks = [
-        {"type": "section", "text": {"type": "mrkdwn",
-            "text": f"*안녕하세요, {emp['name']}님* :wave:\n오늘 상태: *{status_label}*"}},
-    ]
-    if state["status"] == "none":
-        blocks.append({"type": "actions", "elements": [
-            _button("출근", "checkin", style="primary"),
-            _button("재택", "remote"),
-            _button("외근", "field"),
-        ]})
-    else:
-        blocks.append({"type": "context", "elements": [
-            {"type": "mrkdwn", "text": f"현재 근무 *{state.get('worked','-')}*"}]})
-        blocks.append({"type": "actions", "elements": [
-            _button("퇴근", "checkout", style="primary"),
-            _button("외근 전환", "field"),
-        ]})
+    worked = state.get("worked", "-")
+    head = f"*안녕하세요, {emp['name']}님* :wave:\n오늘 상태: *{status_label}*"
+    if state["status"] in ("work", "remote", "field") and worked and worked != "-":
+        head += f"  ·  근무 {worked}"
+
+    def group(title, cmd, elements):
+        return [
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"{title}   `{cmd}`"}},
+            {"type": "actions", "elements": elements},
+        ]
+
+    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": head}},
+              {"type": "divider"}]
+
+    # 출퇴근
+    blocks += group(":clock9: *출퇴근*", "/attend in · /attend out", [
+        _button("출근", "checkin", style="primary"),
+        _button("퇴근", "checkout"),
+    ])
+    # 재택근무
+    blocks += group(":house: *재택근무*", "/attend remote", [
+        _button("재택근무로 출근", "remote"),
+    ])
+    # 외근
+    blocks += group(":round_pushpin: *외근*", "/attend field", [
+        _button("외근으로 전환", "field"),
+    ])
     blocks.append({"type": "divider"})
-    actions = [
-        _button("연차 신청", "open_leave"),
-        _link_button("근무 설정", settings_link(emp)),   # 웹 설정 페이지(놀금·단축 포함)
-        _link_button("내 근태", my_link(emp)),           # 직원 대시보드
-    ]
+
+    # 근태 신청
+    blocks += group(":memo: *근태 신청*", "/attend leave", [
+        _button("연차·근태 신청", "open_leave"),
+    ])
+    # 내 정보
+    blocks += group(":bar_chart: *내 정보*", "/attend status · /attend team", [
+        _link_button("내 근무 현황", my_link(emp)),
+        _link_button("근무 설정", settings_link(emp)),
+    ])
+
     dlink = dashboard_link(emp)
-    if dlink:   # 관리자에게만 대시보드 가기 버튼
-        actions.append(_link_button("대시보드 가기", dlink, style="primary"))
-    blocks.append({"type": "actions", "elements": actions})
+    if dlink:   # 관리자(hr/sysadmin)에게만
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ":gear: *관리자*"}})
+        blocks.append({"type": "actions", "elements": [
+            _link_button("통계", dlink),
+            _link_button("대시보드", dlink, style="primary"),
+        ]})
+
     blocks.append({"type": "divider"})
-    blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": COMMAND_HELP}})
+    blocks.append({"type": "context", "elements": [{"type": "mrkdwn",
+        "text": "누락 등록: `/attend miss 2026-08-01 09:00 18:00`  ·  전체 명령어: `/attend`"}]})
     return {"type": "home", "blocks": blocks}
 
 
