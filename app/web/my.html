@@ -270,13 +270,14 @@ const WTN={normal:'일반근무',flex:'시차근무',selective:'선택적근무'
 function renderWorktime(){const w=DATA.worktime;const el=$('wt-panel');if(!el)return;
   if(!w){el.innerHTML='';return;}
   const box=(l,v,c)=>`<div style="flex:1;min-width:78px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:9px 11px"><div style="font-size:11px;color:var(--muted)">${l}</div><div style="font-size:15px;font-weight:700;margin-top:2px;${c||''}">${v}</div></div>`;
-  const ot=w.overtime_min?H(w.overtime_min)+(w.overtime_capped?' <span style="font-size:10px">(최대)</span>':''):'0';
-  const pend=(w.pending_ot_min||0)>0?`<div style="font-size:12px;color:#b45309;margin-bottom:8px">연장근로 승인대기 ${H(w.pending_ot_min)}</div>`:'';
+  const hh=m=>Hh(m)+'h';
+  const ot=w.overtime_min?hh(w.overtime_min)+(w.overtime_capped?' <span style="font-size:10px">(최대)</span>':''):'0h';
+  const pend=(w.pending_ot_min||0)>0?`<div style="font-size:12px;color:#b45309;margin-bottom:8px">연장근로 승인대기 ${hh(w.pending_ot_min)}</div>`:'';
   el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     ${box('근무제도',WTN[w.work_type]||w.work_type)}
-    ${box('월 소정근로 / 실+휴가',H(w.scheduled_min)+' / '+H(w.fulfilled_min))}
-    ${box('실근로',H(w.actual_min))}
-    ${box('휴가 사용',H(w.leave_min))}
+    ${box('월 소정근로 / 실+휴가',hh(w.scheduled_min)+' / '+hh(w.fulfilled_min))}
+    ${box('실근로',hh(w.actual_min))}
+    ${box('휴가 사용',hh(w.leave_min))}
     ${box('연장근로(승인)',ot,w.overtime_min?'color:#dc2626':'')}
   </div>${pend}`;
 }
