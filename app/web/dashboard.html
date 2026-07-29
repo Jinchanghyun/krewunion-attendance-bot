@@ -196,14 +196,14 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
 
     <!-- 통계 -->
     <section class="page hidden" id="page-stats">
-      <div class="card"><h2>직원별 통계</h2>
-        <div style="max-height:340px;overflow:auto"><table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead><tbody id="emp-body"></tbody></table></div>
-      </div>
       <div class="g2">
         <div class="card"><h2>월 근무 통계 <span style="color:var(--muted);font-weight:400" id="mon-label"></span></h2><div class="chart-box"><canvas id="chart"></canvas></div></div>
         <div class="card"><h2>연 휴가유형별 통계 <span id="lt-label" style="color:var(--muted);font-weight:400"></span></h2>
           <div class="scroll-area"><div id="lt-body"></div></div>
         </div>
+      </div>
+      <div class="card"><h2>인원별 통계</h2>
+        <table><thead><tr><th>인원</th><th>부서</th><th>직책</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead><tbody id="emp-body"></tbody></table>
       </div>
     </section>
   </main>
@@ -333,12 +333,12 @@ function renderMonthly(m){
       scales:{y:{beginAtZero:true,grid:{color:'#eef0f4'}},x:{grid:{display:false}}}}});
 }
 function renderByEmp(rows){
-  let html=rows.map(r=>`<tr><td>${r.name}</td><td>${r.dept}</td>
-    <td class="num">${H(r.worked)}</td><td class="num">${H(r.overtime)}</td>
-    <td class="num">${H(r.night)}</td><td class="num">${H(r.holiday)}</td></tr>`).join('');
-  // 5행 미만이면 빈 행으로 채워 높이 유지(월 통계와 정렬)
-  for(let i=rows.length;i<5;i++) html+='<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>';
-  $('emp-body').innerHTML=html;
+  $('emp-body').innerHTML = rows.length? rows.map(r=>{
+    const nm=r.name+(r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:11px">(${r.display_name})</span>`:'');
+    return `<tr><td>${nm}</td><td>${r.dept}</td><td>${r.position||''}</td>
+      <td class="num">${H(r.worked)}</td><td class="num">${H(r.overtime)}</td>
+      <td class="num">${H(r.night)}</td><td class="num">${H(r.holiday)}</td></tr>`;
+  }).join('') : '<tr><td colspan="7" class="empty">인원이 없습니다</td></tr>';
 }
 function renderPending(rows){
   $('appr-list').innerHTML = rows.length? rows.map(r=>`<div class="appr">

@@ -924,7 +924,9 @@ def stats_by_employee(month: str) -> dict:
             recs = s.scalars(select(AttendanceRecord).where(
                 AttendanceRecord.employee_id == e.id,
                 AttendanceRecord.date >= start, AttendanceRecord.date <= end)).all()
-            rows.append({"employee_id": e.id, "name": e.name, "dept": e.dept,
+            rows.append({"employee_id": e.id, "name": e.name,
+                         "display_name": getattr(e, "display_name", None) or "",
+                         "dept": e.dept, "position": getattr(e, "position", ""),
                          "worked": sum(r.work_minutes for r in recs),
                          "overtime": sum(r.overtime_minutes for r in recs),
                          "night": sum(r.night_minutes for r in recs),
