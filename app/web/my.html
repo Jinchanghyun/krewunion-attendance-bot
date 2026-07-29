@@ -145,7 +145,7 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
             <option value="half_am">오전 반차</option>
             <option value="half_pm">오후 반차</option>
           </optgroup>
-          <optgroup label="특수 휴가 (연차 미차감)">
+          <optgroup label="특수 휴가">
             <option value="sabbatical">안식휴가</option>
             <option value="family_care">가족돌봄 휴가</option>
             <option value="bd">BD</option>
@@ -191,8 +191,8 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
         <div class="field"><label class="fl">사유</label><input type="text" id="ot-detail" placeholder=""></div>
       </div>
       <div class="row2">
-        <div class="field"><label class="fl">시작</label><input type="time" id="ot-start" value="18:00"></div>
-        <div class="field"><label class="fl">종료</label><input type="time" id="ot-end" value="21:00"></div>
+        <div class="field"><label class="fl">시작</label><input type="time" id="ot-start" value="18:00" step="600"></div>
+        <div class="field"><label class="fl">종료</label><input type="time" id="ot-end" value="21:00" step="600"></div>
       </div>
       <button class="btn btn-p" id="ot-submit">승인 요청</button>
       <div id="ot-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
@@ -206,17 +206,21 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
   <div id="err" class="card" style="display:none;color:#dc2626;font-size:13px"></div>
 </div>
 
+<style>
+  input[type=time],input[type=date]{accent-color:#E6E6E6;}
+  input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box-shadow:0 0 0 3px #E6E6E6!important;}
+</style>
 <!-- 출퇴근 편집 팝업 -->
 <div id="edit-modal" style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:900;padding:50px 16px" onclick="if(event.target===this)closeEdit()">
   <div style="background:#fff;border-radius:16px;padding:18px 20px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><b id="edit-title">출퇴근 편집</b><button onclick="closeEdit()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--muted)">✕</button></div>
     <div class="field" style="margin-bottom:8px"><label class="fl">형태</label><select id="ed-kind"><option value="office">사무실</option><option value="remote">재택</option><option value="field">외근</option><option value="dayoff">데이오프 (근무 안 함)</option></select></div>
     <div class="row2">
-      <div class="field"><label class="fl">출근</label><input type="time" id="ed-in" step="1800"></div>
-      <div class="field"><label class="fl">퇴근</label><input type="time" id="ed-out" step="1800"></div>
+      <div class="field"><label class="fl">출근</label><input type="time" id="ed-in" step="600"></div>
+      <div class="field"><label class="fl">퇴근</label><input type="time" id="ed-out" step="600"></div>
     </div>
-    <div class="field" style="margin-top:8px"><label class="fl">자리비움 (선택, 30분 단위)</label>
-      <div style="display:flex;gap:8px;align-items:center"><input type="time" id="ed-away-from" step="1800" style="flex:1"><span style="color:var(--muted)">~</span><input type="time" id="ed-away-to" step="1800" style="flex:1"></div>
+    <div class="field" style="margin-top:8px"><label class="fl">자리비움 (선택, 10분 단위)</label>
+      <div style="display:flex;gap:8px;align-items:center"><input type="time" id="ed-away-from" step="600" style="flex:1"><span style="color:var(--muted)">~</span><input type="time" id="ed-away-to" step="600" style="flex:1"></div>
     </div>
     <button class="btn btn-p" id="ed-save" style="margin-top:14px;width:100%">저장</button>
     <div id="ed-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
@@ -418,7 +422,8 @@ const LV_TYPES=[
   {key:'bd',name:'BD',fields:['bd']},
   {key:'seollal',name:'설날 휴가',fields:['hours']},
   {key:'chuseok',name:'추석 휴가',fields:['hours']},
-  {key:'family_care',name:'가족돌봄 휴가',fields:['paid','quota'],unit:'일'},
+  {key:'family_care_paid',name:'가족돌봄(유급)',fields:['quota'],unit:'일'},
+  {key:'family_care_unpaid',name:'가족돌봄(무급)',fields:['quota'],unit:'일'},
   {key:'birthday',name:'생일 휴가',fields:['hours']},
   {key:'health',name:'건강휴가',fields:['quota'],unit:'일'},
   {key:'sabbatical',name:'안식휴가',fields:['quota'],unit:'일'},
@@ -444,13 +449,14 @@ function buildLeaveOptions(cfg){const on=k=>cfg[k]&&cfg[k].on;const g=[['연차'
   if(on('bd'))sp.push(['bd','BD'+(cfg.bd.hours?` (${cfg.bd.hours}h/${cfg.bd.cycle||2}주)`:'')]);
   if(on('seollal'))sp.push(['seollal',`설날 휴가 (${cfg.seollal.hours||8}h)`]);
   if(on('chuseok'))sp.push(['chuseok',`추석 휴가 (${cfg.chuseok.hours||8}h)`]);
-  if(on('family_care')){sp.push(['family_care_paid','가족돌봄(유급)']);sp.push(['family_care_unpaid','가족돌봄(무급)']);}
+  if(on('family_care_paid'))sp.push(['family_care_paid','가족돌봄(유급)']);
+  if(on('family_care_unpaid'))sp.push(['family_care_unpaid','가족돌봄(무급)']);
   if(on('refresh'))sp.push(['refresh','리프레쉬 휴가']);
   if(on('health'))sp.push(['health','건강휴가']);
   if(on('sabbatical'))sp.push(['sabbatical','안식휴가']);
   if(on('health_check')){if((cfg.health_check.hours||8)==8)sp.push(['health_check_full','건강검진 (8h)']);else{sp.push(['health_check_am','건강검진 (오전 4h)']);sp.push(['health_check_pm','건강검진 (오후 4h)']);}}
   if(on('birthday')){if((cfg.birthday.hours||8)==8)sp.push(['birthday_full','생일 (8h)']);else{sp.push(['birthday_am','생일 (오전 4h)']);sp.push(['birthday_pm','생일 (오후 4h)']);}}
-  if(sp.length)g.push(['특수 휴가 (연차 미차감)',sp]);return g;}
+  if(sp.length)g.push(['특수 휴가',sp]);return g;}
 function renderLeaveDropdown(cfg){const sel=$('lv-kind');if(!sel)return;sel.innerHTML=buildLeaveOptions(cfg).map(([label,opts])=>`<optgroup label="${label}">`+opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')+'</optgroup>').join('');}
 
 /* 탭 전환 */

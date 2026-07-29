@@ -217,7 +217,7 @@ def leave_modal() -> dict:
                         opt("연차 (종일)", "annual"),
                         opt("오전반차 (4시간)", "half_am"),
                         opt("오후반차 (4시간)", "half_pm")]},
-                    {"label": {"type": "plain_text", "text": "특수 휴가 (연차 미차감)"}, "options": [
+                    {"label": {"type": "plain_text", "text": "특수 휴가"}, "options": [
                         opt("안식휴가", "sabbatical"),
                         opt("리프레쉬 휴가", "refresh"),
                         opt("가족돌봄(유급)", "family_care_paid"),

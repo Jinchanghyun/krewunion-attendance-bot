@@ -267,7 +267,8 @@ def create_leave(employee_id: str, kind: str, start: date, end: date, days: floa
 # 일(day) 단위로 부여·차감하는 휴가 그룹(당해년도 사용가능 일수)
 _DAY_LEAVE_GROUPS = {
     "annual": (["annual", "half_am", "half_pm"], "연차"),
-    "family_care": (["family_care", "family_care_paid", "family_care_unpaid"], "가족돌봄 휴가"),
+    "family_care_paid": (["family_care_paid", "family_care"], "가족돌봄(유급)"),
+    "family_care_unpaid": (["family_care_unpaid"], "가족돌봄(무급)"),
     "health": (["health"], "건강휴가"),
     "sabbatical": (["sabbatical"], "안식휴가"),
     "refresh": (["refresh"], "리프레쉬 휴가"),

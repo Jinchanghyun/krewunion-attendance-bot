@@ -26,6 +26,8 @@ label.fl{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;font-wei
 .field{margin-bottom:14px;}.field:last-child{margin-bottom:0;}
 select,input[type=time],input[type=date],input[type=number]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:#fff;color:var(--ink);font-family:inherit;}
 select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft);}
+input[type=time],input[type=date]{accent-color:#E6E6E6;}
+input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box-shadow:0 0 0 3px #E6E6E6!important;}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
 .opts{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
 .opt{border:1.5px solid var(--line);border-radius:11px;padding:11px 12px;cursor:pointer;transition:.15s;}
@@ -98,12 +100,12 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
           <div class="opt" data-v="elastic"><div class="ot">탄력근무</div><div class="os">단위기간 평균</div></div>
         </div>
         <div class="row2" style="margin-top:14px">
-          <div class="field"><label class="fl">출근</label><input type="time" id="checkin"></div>
-          <div class="field"><label class="fl">퇴근</label><input type="time" id="checkout"></div>
+          <div class="field"><label class="fl">출근</label><input type="time" id="checkin" step="600"></div>
+          <div class="field"><label class="fl">퇴근</label><input type="time" id="checkout" step="600"></div>
         </div>
         <div class="row2">
-          <div class="field"><label class="fl">휴게 시작</label><input type="time" id="break_start"></div>
-          <div class="field"><label class="fl">휴게 종료</label><input type="time" id="break_end"></div>
+          <div class="field"><label class="fl">휴게 시작</label><input type="time" id="break_start" step="600"></div>
+          <div class="field"><label class="fl">휴게 종료</label><input type="time" id="break_end" step="600"></div>
         </div>
       </div>
 
