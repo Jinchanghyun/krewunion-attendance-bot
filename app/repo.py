@@ -302,13 +302,27 @@ def my_month(employee_id: str, month: str) -> dict:
                       LeaveRequest.start <= end, LeaveRequest.end >= start)).all()]
         c = s.get(WorkConfig, employee_id)
         cfg = _config_dict(c) if c else work_config(employee_id)
+        # 승인된 연장근로(분) — 연장근로는 승인분만 인정
+        approved_ot = 0
+        for a in s.scalars(select(Approval).where(
+                Approval.employee_id == employee_id,
+                Approval.kind == "overtime", Approval.status == "approved")).all():
+            p = a.payload or {}
+            if str(p.get("date", ""))[:7] == month:
+                st, en = p.get("start"), p.get("end")
+                try:
+                    if st and en:
+                        approved_ot += (int(en[:2]) * 60 + int(en[3:5])) - \
+                                       (int(st[:2]) * 60 + int(st[3:5]))
+                except Exception:
+                    pass
     summary = {"worked": sum(r["work"] for r in records),
                "overtime": sum(r["overtime"] for r in records),
                "night": sum(r["night"] for r in records),
                "holiday": sum(r["holiday"] for r in records)}
     from app.domain import worktime as _wt
     yy, mm = int(month[:4]), int(month[5:7])
-    wt = _wt.monthly_summary(cfg, records, leaves, yy, mm)
+    wt = _wt.monthly_summary(cfg, records, leaves, yy, mm, approved_ot_min=approved_ot)
     return {"month": month, "records": records, "leaves": leaves,
             "config": cfg, "summary": summary, "worktime": wt}
 

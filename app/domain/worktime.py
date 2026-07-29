@@ -78,11 +78,16 @@ def leave_used_minutes(config: dict, leaves: list[dict], year: int, month: int) 
 
 
 def monthly_summary(config: dict, records: list[dict], leaves: list[dict],
-                    year: int, month: int) -> dict:
+                    year: int, month: int, approved_ot_min: int = 0) -> dict:
     """월 근로시간 요약.
 
     records: [{"work": 분, ...}] (repo.my_month 형식)
     leaves:  [{"kind","start","end"}]
+    approved_ot_min: 그 달 '승인된' 연장근로(분). 연장근로는 승인분만 인정한다.
+
+    - raw_overtime_min: 발생분(신청 안내 트리거용). 시차=일 8h 초과 합, 선택적=월 소정 초과.
+    - overtime_min: 실제 인정 연장근로 = 승인분(최대 24h).
+    - pending_ot_min: 발생했으나 아직 미승인(신청 필요) 분.
     """
     work_type = config.get("work_type", "normal")
     scheduled = month_scheduled_minutes(config, year, month)
@@ -90,10 +95,11 @@ def monthly_summary(config: dict, records: list[dict], leaves: list[dict],
     lv_min = leave_used_minutes(config, leaves, year, month)
 
     if work_type == "flex":                       # 시차: 하루 8h 초과분 합
-        overtime = sum(max(0, int(r.get("work") or 0) - STD_DAY_MIN) for r in records)
+        raw_ot = sum(max(0, int(r.get("work") or 0) - STD_DAY_MIN) for r in records)
     else:                                         # 선택적 등: 월 소정 초과분
-        overtime = max(0, actual - scheduled)
-    overtime = min(overtime, MAX_OT_MIN)
+        raw_ot = max(0, actual - scheduled)
+    raw_ot = min(raw_ot, MAX_OT_MIN)
+    overtime = min(max(0, approved_ot_min), MAX_OT_MIN)   # 승인분만 인정
 
     return {
         "work_type": work_type,
@@ -102,6 +108,8 @@ def monthly_summary(config: dict, records: list[dict], leaves: list[dict],
         "leave_min": lv_min,
         "fulfilled_min": actual + lv_min,          # 실근로 + 휴가
         "remaining_min": max(0, scheduled - (actual + lv_min)),
-        "overtime_min": overtime,
+        "overtime_min": overtime,                  # 승인된 연장근로
+        "raw_overtime_min": raw_ot,                # 발생분(참고)
+        "pending_ot_min": max(0, raw_ot - overtime),  # 미승인(신청 필요)
         "overtime_capped": overtime >= MAX_OT_MIN,
     }
