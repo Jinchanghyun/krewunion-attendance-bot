@@ -361,7 +361,11 @@ def leave_balances(employee_id: str) -> list[dict]:
         conf = lc.get(g) or {}
         if not conf.get("on", False):
             continue
+        # 부여: 직접 입력한 사용가능(일)이 있으면 그 값, 없으면 설정 시간 기준(4h=0.5일, 8h=1일)
         granted = float(conf.get("quota") or 0)
+        if not granted:
+            hrs = conf.get("hours", 4 if g == "bd" else 8)
+            granted = round(hrs / 8.0, 2)
         used_days = round(leave_used_hours(employee_id, g) / 8.0, 2)  # 4시간=0.5일
         out.append({"group": g, "label": label, "unit": "일", "granted": granted,
                     "used": used_days, "remaining": round(granted - used_days, 2)})
