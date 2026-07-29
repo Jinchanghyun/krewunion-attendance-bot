@@ -201,27 +201,41 @@ def checkout_confirm(s: dict) -> str:
 
 
 def leave_modal() -> dict:
-    """연차 신청 모달 — 연차 / 오전반차(4h) / 오후반차(4h)."""
+    """휴가 신청 모달 — 연차·반차 + 특수 휴가(안식·가족돌봄·건강검진·생일 등)."""
+    def opt(text, value):
+        return {"text": {"type": "plain_text", "text": text}, "value": value}
     return {
         "type": "modal", "callback_id": "leave_modal",
-        "title": {"type": "plain_text", "text": "연차 신청"},
+        "title": {"type": "plain_text", "text": "휴가 신청"},
         "submit": {"type": "plain_text", "text": "신청"},
         "close": {"type": "plain_text", "text": "취소"},
         "blocks": [
             {"type": "input", "block_id": "kind", "label": {"type": "plain_text", "text": "종류"},
              "element": {"type": "static_select", "action_id": "v",
-                "options": [
-                    {"text": {"type": "plain_text", "text": "연차 (종일)"}, "value": "annual"},
-                    {"text": {"type": "plain_text", "text": "오전반차 (4시간)"}, "value": "half_am"},
-                    {"text": {"type": "plain_text", "text": "오후반차 (4시간)"}, "value": "half_pm"},
+                "option_groups": [
+                    {"label": {"type": "plain_text", "text": "연차"}, "options": [
+                        opt("연차 (종일)", "annual"),
+                        opt("오전반차 (4시간)", "half_am"),
+                        opt("오후반차 (4시간)", "half_pm")]},
+                    {"label": {"type": "plain_text", "text": "특수 휴가 (연차 미차감)"}, "options": [
+                        opt("안식휴가", "sabbatical"),
+                        opt("가족돌봄 휴가", "family_care"),
+                        opt("BD", "bd"),
+                        opt("건강휴가", "health"),
+                        opt("건강검진 (8h)", "health_check_full"),
+                        opt("건강검진 (오전 4h)", "health_check_am"),
+                        opt("건강검진 (오후 4h)", "health_check_pm"),
+                        opt("생일 (8h)", "birthday_full"),
+                        opt("생일 (오전 4h)", "birthday_am"),
+                        opt("생일 (오후 4h)", "birthday_pm")]},
                 ]}},
             {"type": "input", "block_id": "start", "label": {"type": "plain_text", "text": "시작일"},
              "element": {"type": "datepicker", "action_id": "v"}},
-            {"type": "input", "block_id": "end",
-             "label": {"type": "plain_text", "text": "종료일"},
+            {"type": "input", "block_id": "end", "optional": True,
+             "label": {"type": "plain_text", "text": "종료일 (반일·당일이면 비워두세요)"},
              "element": {"type": "datepicker", "action_id": "v"}},
-            {"type": "input", "block_id": "reason",
-             "label": {"type": "plain_text", "text": "사유"},
+            {"type": "input", "block_id": "reason", "optional": True,
+             "label": {"type": "plain_text", "text": "사유 (선택)"},
              "element": {"type": "plain_text_input", "action_id": "v"}},
         ],
     }

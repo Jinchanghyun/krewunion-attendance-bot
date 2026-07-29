@@ -174,16 +174,16 @@ async def create_my_leave(req: Request, emp: dict = Depends(require_employee)):
     from app.domain import leave as leave_engine
     body = await req.json()
     kind = body.get("kind", "annual")
-    if kind not in ("annual", "half_am", "half_pm"):
-        raise HTTPException(400, "kind는 annual · half_am · half_pm 중 하나입니다.")
+    if kind not in leave_engine.LEAVE_LABEL:
+        raise HTTPException(400, "알 수 없는 휴가 종류입니다.")
     try:
         start = _date.fromisoformat(body.get("start"))
     except Exception:
         raise HTTPException(400, "시작일이 올바르지 않습니다.")
     end_raw = body.get("end")
     end = _date.fromisoformat(end_raw) if end_raw else start
-    if kind in ("half_am", "half_pm"):
-        end = start   # 반차는 하루
+    if kind in leave_engine.HALF_DAY_KINDS:
+        end = start   # 반일 종류는 하루
     if end < start:
         raise HTTPException(400, "종료일이 시작일보다 빠를 수 없습니다.")
     reason = (body.get("reason") or "").strip()   # 선택

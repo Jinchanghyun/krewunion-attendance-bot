@@ -51,6 +51,11 @@ def is_recovery_day(config: dict, d: date) -> bool:
     mode = rc.get("mode", "none")
     if mode == "lastfri":
         return d == last_friday(d.year, d.month)
+    if mode == "thirdfri":
+        # 매월 셋째주 금요일(그 달의 3번째 금요일)
+        if d.weekday() != FRI:
+            return False
+        return (d.day - 1) // 7 == 2
     if mode == "biweekly":
         anchor = rc.get("anchor")
         if not anchor or d.weekday() != FRI:

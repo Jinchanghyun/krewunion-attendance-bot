@@ -113,6 +113,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         <div id="rec">
           <div class="radio" data-v="none"><div class="dot"></div><div><div class="rt">사용 안 함</div></div></div>
           <div class="radio" data-v="lastfri"><div class="dot"></div><div><div class="rt">매월 마지막 주 금요일</div></div></div>
+          <div class="radio" data-v="thirdfri"><div class="dot"></div><div><div class="rt">매월 셋째 주 금요일</div></div></div>
           <div class="radio" data-v="biweekly"><div class="dot"></div><div style="flex:1"><div class="rt">격주 금요일 (놀금)</div></div></div>
           <div class="sub hidden" data-sub="biweekly"><label class="fl">기준 금요일</label><input type="date" id="bw-anchor"></div>
           <div class="radio" data-v="custom"><div class="dot"></div><div style="flex:1"><div class="rt">직접 지정</div></div></div>
@@ -288,6 +289,7 @@ window.rmRule=id=>{state.short_rules=state.short_rules.filter(r=>r.id!==id);rend
 function lastFriday(y,m){const d=new Date(y,m+1,0);while(d.getDay()!==5)d.setDate(d.getDate()-1);return d;}
 function isRecoveryDay(d){const rc=state.recovery;
   if(rc.mode==='lastfri')return iso(lastFriday(d.getFullYear(),d.getMonth()))===iso(d);
+  if(rc.mode==='thirdfri')return d.getDay()===5 && Math.floor((d.getDate()-1)/7)===2;
   if(rc.mode==='biweekly'){if(!rc.anchor||d.getDay()!==5)return false;const diff=Math.round((d-new Date(rc.anchor+'T00:00'))/86400000);return diff>=0&&diff%14===0;}
   if(rc.mode==='custom')return (rc.custom||[]).includes(iso(d));return false;}
 function ruleMatches(r,d){if(r.repeat==='dates')return (r.dates||[]).includes(iso(d));

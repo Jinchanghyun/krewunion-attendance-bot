@@ -82,7 +82,7 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
   </div>
 
   <div class="tabs">
-    <span class="tab on" data-t="cal">근태 캘린더</span>
+    <span class="tab on" data-t="cal">근무시스템</span>
     <span class="tab" data-t="rec">출퇴근 기록</span>
     <span class="tab" data-t="sch">근무일정</span>
     <span class="tab" data-t="lv">연차</span>
@@ -136,7 +136,25 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
     <div class="card">
       <h2>연차 신청 <span style="font-weight:400;color:var(--muted);font-size:12px">· 승인 없이 즉시 반영</span></h2>
       <div class="row3">
-        <div class="field"><label class="fl">종류</label><select id="lv-kind"><option value="annual">연차 (종일)</option><option value="half_am">오전 반차</option><option value="half_pm">오후 반차</option></select></div>
+        <div class="field"><label class="fl">종류</label><select id="lv-kind">
+          <optgroup label="연차">
+            <option value="annual">연차 (종일)</option>
+            <option value="half_am">오전 반차</option>
+            <option value="half_pm">오후 반차</option>
+          </optgroup>
+          <optgroup label="특수 휴가 (연차 미차감)">
+            <option value="sabbatical">안식휴가</option>
+            <option value="family_care">가족돌봄 휴가</option>
+            <option value="bd">BD</option>
+            <option value="health">건강휴가</option>
+            <option value="health_check_full">건강검진 (8h)</option>
+            <option value="health_check_am">건강검진 (오전 4h)</option>
+            <option value="health_check_pm">건강검진 (오후 4h)</option>
+            <option value="birthday_full">생일 (8h)</option>
+            <option value="birthday_am">생일 (오전 4h)</option>
+            <option value="birthday_pm">생일 (오후 4h)</option>
+          </optgroup>
+        </select></div>
         <div class="field"><label class="fl">시작일</label><input type="date" id="lv-start"></div>
         <div class="field"><label class="fl" id="lv-endlabel">종료일</label><input type="date" id="lv-end"></div>
       </div>
@@ -218,6 +236,7 @@ function moveMonth(d){cur=new Date(cur.getFullYear(),cur.getMonth()+d,1);loadMon
 /* 놀금·단축 계산 */
 function lastFri(y,m){const d=new Date(y,m+1,0);while(d.getDay()!==5)d.setDate(d.getDate()-1);return d;}
 function isNol(date){const rc=(CFG&&CFG.recovery)||{};if(rc.mode==='lastfri')return iso(lastFri(date.getFullYear(),date.getMonth()))===iso(date);
+  if(rc.mode==='thirdfri')return date.getDay()===5 && Math.floor((date.getDate()-1)/7)===2;
   if(rc.mode==='biweekly'){if(!rc.anchor||date.getDay()!==5)return false;const diff=Math.round((date-new Date(rc.anchor+'T00:00'))/86400000);return diff>=0&&diff%14===0;}
   if(rc.mode==='custom')return (rc.custom||[]).includes(iso(date));return false;}
 function isShort(date){if(!CFG||!(CFG.short_rules||[]).length)return false;const wd=date.getDay();if(wd<1||wd>5)return false;const t=iso(date);
@@ -253,7 +272,7 @@ function renderRecList(){const rows=(DATA.records||[]);$('rec-body').innerHTML=r
 }).join(''):'<tr><td colspan="6" class="empty">이 달 출퇴근 기록이 없습니다</td></tr>';}
 
 function renderSchedule(){const c=CFG||{};const WT={normal:'일반근무',flex:'시차근무',selective:'선택적근무',elastic:'탄력근무'}[c.work_type]||c.work_type;
-  const rc=c.recovery||{};const nol={none:'사용 안 함',lastfri:'매월 마지막 주 금요일',biweekly:'격주 금요일'+(rc.anchor?' (기준 '+rc.anchor+')':''),custom:'직접 지정('+((rc.custom||[]).length)+'일)'}[rc.mode]||'—';
+  const rc=c.recovery||{};const nol={none:'사용 안 함',lastfri:'매월 마지막 주 금요일',thirdfri:'매월 셋째 주 금요일',biweekly:'격주 금요일'+(rc.anchor?' (기준 '+rc.anchor+')':''),custom:'직접 지정('+((rc.custom||[]).length)+'일)'}[rc.mode]||'—';
   const rules=(c.short_rules||[]);
   const rulesHtml=rules.length?rules.map(r=>{const kind=r.kind==='late'?'출근 늦춤':'퇴근 당김';const amt=r.amount_min>=60?(r.amount_min/60)+'시간':r.amount_min+'분';
     let when=r.repeat==='weekly'?('매주 '+(r.weekdays||[]).map(d=>({1:'월',2:'화',3:'수',4:'목',5:'금'}[d])).join('·')):(r.repeat==='dates'?(r.dates||[]).length+'일 지정':'매일(월–금)');
@@ -261,7 +280,7 @@ function renderSchedule(){const c=CFG||{};const WT={normal:'일반근무',flex:'
   $('sch-body').innerHTML=`
     <table style="margin-bottom:8px">
       <tr><td style="color:var(--muted);width:120px">근무제도</td><td>${WT}</td></tr>
-      <tr><td style="color:var(--muted)">소정 출퇴근</td><td>${c.checkin||'09:00'} ~ ${c.checkout||'18:00'} (휴게 ${c.break_start||'12:00'}~${c.break_end||'13:00'})</td></tr>
+      <tr><td style="color:var(--muted)">기본 출퇴근</td><td>${c.checkin||'09:00'} ~ ${c.checkout||'18:00'} (휴게 ${c.break_start||'12:00'}~${c.break_end||'13:00'})</td></tr>
       <tr><td style="color:var(--muted)">놀금(리커버리데이)</td><td>${nol}</td></tr>
     </table>
     <div style="font-size:12px;color:var(--muted);margin-bottom:6px">단축근무 규칙</div>
@@ -282,24 +301,24 @@ $('ot-submit').addEventListener('click',async()=>{const msg=$('ot-msg');
     msg.style.color='var(--green)';msg.textContent='승인 요청을 보냈습니다. 팀장 승인 후 반영됩니다.';loadOvertime();
   }catch(e){msg.style.color='#dc2626';msg.textContent='신청 실패: '+e;}});
 
-/* 연차 */
-const LVK={annual:'연차',half_am:'오전반차',half_pm:'오후반차'};
+/* 휴가 */
+const SINGLE_LV=['half_am','half_pm','health_check_am','health_check_pm','birthday_am','birthday_pm'];
 async function loadLeave(){try{const d=await api('/api/my/leave');const P={applied:['확정','p-ok'],cancelled:['취소','p-cx']};
   $('lv-body').innerHTML=d.rows.length?d.rows.map(r=>{const [lb,c]=P[r.status]||['확정','p-ok'];
     const per=r.start===r.end?r.start:(r.start+' ~ '+r.end);
     const cancel=r.status==='applied'?`<button class="btn btn-g" style="padding:4px 10px" onclick="cancelLeave(${r.id})">취소</button>`:'';
-    return `<tr><td>${LVK[r.kind]||r.kind}</td><td>${per}</td><td class="num">${r.days}</td><td>${r.reason||'—'}</td><td>${cancel}</td></tr>`;}).join(''):'<tr><td colspan="5" class="empty">신청 내역이 없습니다</td></tr>';
+    return `<tr><td>${r.kind_label||r.kind}</td><td>${per}</td><td class="num">${r.days||'—'}</td><td>${r.reason||'—'}</td><td>${cancel}</td></tr>`;}).join(''):'<tr><td colspan="5" class="empty">신청 내역이 없습니다</td></tr>';
 }catch(e){$('lv-body').innerHTML='<tr><td colspan="5" class="empty">불러오기 실패</td></tr>';}}
-window.cancelLeave=async(id)=>{if(!confirm('이 연차를 취소할까요? 차감된 연차가 복원됩니다.'))return;
+window.cancelLeave=async(id)=>{if(!confirm('이 휴가를 취소할까요?'))return;
   try{await api('/api/my/leave/cancel',{method:'POST',body:JSON.stringify({id})});loadLeave();loadMonth();}catch(e){alert('취소 실패: '+e);}};
-$('lv-kind').addEventListener('change',()=>{const half=$('lv-kind').value!=='annual';$('lv-end').disabled=half;$('lv-endlabel').style.opacity=half?.4:1;if(half)$('lv-end').value=$('lv-start').value;});
-$('lv-start').addEventListener('change',()=>{if($('lv-kind').value!=='annual')$('lv-end').value=$('lv-start').value;});
+$('lv-kind').addEventListener('change',()=>{const single=SINGLE_LV.includes($('lv-kind').value);$('lv-end').disabled=single;$('lv-endlabel').style.opacity=single?.4:1;if(single)$('lv-end').value=$('lv-start').value;});
+$('lv-start').addEventListener('change',()=>{if(SINGLE_LV.includes($('lv-kind').value))$('lv-end').value=$('lv-start').value;});
 $('lv-submit').addEventListener('click',async()=>{const msg=$('lv-msg');
   const kind=$('lv-kind').value,start=$('lv-start').value,reason=$('lv-reason').value.trim();
-  let end=$('lv-end').value; if(kind!=='annual')end=start;
+  let end=$('lv-end').value; if(SINGLE_LV.includes(kind))end=start;
   if(!start){msg.style.color='#dc2626';msg.textContent='시작일을 선택하세요.';return;}
   try{const r=await api('/api/my/leave',{method:'POST',body:JSON.stringify({kind,start,end,reason})});
-    msg.style.color='var(--green)';msg.textContent=`${LVK[kind]} ${r.days}일 신청 완료 (즉시 반영)`;
+    msg.style.color='var(--green)';msg.textContent=(r.days>0?`${r.days}일 차감 · `:'')+'신청 완료 (즉시 반영)';
     $('lv-reason').value='';loadLeave();loadMonth();
   }catch(e){msg.style.color='#dc2626';msg.textContent='신청 실패: '+e;}});
 

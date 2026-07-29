@@ -189,15 +189,22 @@ def submit_leave(ack, body, view, client):
     start = datetime.fromisoformat(vals["start"]["v"]["selected_date"]).date()
     end_raw = vals.get("end", {}).get("v", {}).get("selected_date")
     end = datetime.fromisoformat(end_raw).date() if end_raw else start
+    if kind in leave_engine.HALF_DAY_KINDS:
+        end = start
+    reason = (vals.get("reason", {}).get("v", {}).get("value") or "").strip()
 
     cfg = repo.work_config(emp["id"])
     days = leave_engine.deduct_days(cfg, kind, start, end)
-    req = repo.create_leave(emp["id"], kind, start, end, days)
+    req = repo.create_leave(emp["id"], kind, start, end, days, reason=reason)
 
-    from app.scheduler import tasks  # 지연 임포트(순환 방지)
-    tasks.sync_leave_calendar.delay(req["id"])  # 구글 캘린더 비동기 등록
+    try:  # 연차만 구글 캘린더 동기화(설정된 경우) — 실패해도 신청은 유지
+        from app.integrations import gcal
+        gcal.sync_leave(req["id"])
+    except Exception as e:
+        print("gcal sync skipped:", e)
+    tail = f"{days}일 차감" if days else "잔여 미차감"
     client.chat_postMessage(channel=emp["slack_user_id"],
-        text=f":white_check_mark: {leave_engine.LEAVE_LABEL[kind]} 신청 완료 · {days}일 차감")
+        text=f":white_check_mark: {leave_engine.LEAVE_LABEL[kind]} 신청 완료 · {tail}")
 
 
 # ── 근무 설정(간단 항목) ──────────────────────────────
