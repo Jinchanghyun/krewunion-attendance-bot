@@ -269,7 +269,7 @@ function renderPerm(rows){const el=$('perm-body');if(!el)return;
   const byPos={};(rows||[]).forEach(r=>{(byPos[r.position]=byPos[r.position]||[]).push(r);});
   // 관리자(임원) — 폰트 크게
   const adminHtml=ADMIN_POS.map(p=>{const m=(byPos[p]||[])[0];
-    return `<div style="font-size:15px;margin:7px 0"><b style="color:var(--brand)">${p}</b> ${m?nm(m)+(m.company?` <span style="color:var(--muted);font-size:13px">${m.company}</span>`:''):'<span style="color:var(--muted)">미지정</span>'}</div>`;}).join('');
+    return `<div style="font-size:13px;margin:7px 0"><b style="color:#111827">${p}</b> ${m?nm(m)+(m.company?` <span style="color:var(--muted);font-size:12px">${m.company}</span>`:''):'<span style="color:var(--muted)">미지정</span>'}</div>`;}).join('');
   // 부서별 구성 — 접이식
   const byDept={};(rows||[]).forEach(r=>{(byDept[r.dept]=byDept[r.dept]||[]).push(r);});
   const deptHtml=DEPTS_ORDER.map(d=>{const m=byDept[d]||[];
