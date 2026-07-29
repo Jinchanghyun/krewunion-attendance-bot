@@ -204,6 +204,21 @@ def pending_approvals(_: dict = Depends(require_admin)):
     return repo.pending_approvals()
 
 
+@api.post("/api/approvals/decide")
+async def decide_approval(req: Request, admin: dict = Depends(require_admin)):
+    """연장·휴일근무 승인/반려 — 승인권은 사무장(또는 지회장)."""
+    body = await req.json()
+    actor = admin.get("slack_user_id", "")
+    if not repo.is_approver(actor):
+        raise HTTPException(403, "승인 권한은 사무장에게 있습니다.")
+    decision = body.get("decision")
+    if decision not in ("approve", "reject"):
+        raise HTTPException(400, "decision은 approve 또는 reject")
+    status = "approved" if decision == "approve" else "rejected"
+    repo.update_approval(int(body.get("id")), status, actor)
+    return {"ok": True, "status": status}
+
+
 # ── 구성원/권한 관리 (대시보드에서 관리자 지정) ──────────
 @api.get("/api/employees")
 def api_employees(admin: dict = Depends(require_admin)):

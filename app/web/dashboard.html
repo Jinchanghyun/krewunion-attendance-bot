@@ -180,8 +180,24 @@ function renderPending(rows){
   $('appr-list').innerHTML = rows.length? rows.map(r=>`<div class="appr">
     <div style="display:flex;justify-content:space-between"><span class="t">${r.employee} · ${r.dept}</span>
     <span class="tag">${r.kind==='overtime'?'연장근무':'휴일근무'}</span></div>
-    <div class="m">${r.detail}</div></div>`).join('') : '<div class="empty">대기 중인 승인이 없습니다</div>';
+    <div class="m">${r.detail}</div>
+    <div style="display:flex;gap:6px;margin-top:8px">
+      <button class="chip" style="border-color:var(--green);color:var(--green)" onclick="decideAppr(${r.id},'approve')">승인</button>
+      <button class="chip" style="border-color:#dc2626;color:#dc2626" onclick="decideAppr(${r.id},'reject')">반려</button>
+    </div></div>`).join('') : '<div class="empty">대기 중인 승인이 없습니다</div>';
 }
+window.decideAppr=async(id,decision)=>{
+  const base=$('api').value.trim(), tok=$('tok').value.trim();
+  if(!base||!tok){alert('API 주소와 토큰을 먼저 입력하세요.');return;}
+  try{
+    const r=await fetch(base+'/api/approvals/decide',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},
+      body:JSON.stringify({id,decision})});
+    const j=await r.json();
+    if(!r.ok){alert('처리 실패: '+(j.detail||('HTTP '+r.status)));return;}
+    reload();
+  }catch(e){alert('오류: '+e);}
+};
 
 async function reload(){
   let demo=false, o,l,mo,be,pe;
