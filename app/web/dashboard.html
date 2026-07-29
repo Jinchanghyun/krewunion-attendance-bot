@@ -138,9 +138,9 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
         <div style="font-size:13px">휴가 <b id="s-off" style="color:var(--amber)">—</b></div>
         <div style="font-size:13px">승인 대기 <b id="s-appr" style="color:#dc2626">—</b></div>
       </div>
-      <div class="g2">
-        <div class="card"><h2>오늘의 근무 현황</h2>
-          <div class="homekpi">
+      <div class="g2" style="align-items:stretch">
+        <div class="card" style="min-height:230px;display:flex;flex-direction:column"><h2>오늘의 근무 현황</h2>
+          <div class="homekpi" style="flex:1;align-items:center">
             <div class="hk"><div class="n" id="k-present" style="color:var(--brand)">—</div><div class="l">출근</div></div>
             <div class="hk"><div class="n" id="k-off" style="color:var(--amber)">—</div><div class="l">휴가</div></div>
             <div class="hk"><div class="n" id="k-absent" style="color:#dc2626">—</div><div class="l">미출근</div></div>
@@ -148,8 +148,8 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
             <div class="hk"><div class="n" id="k-field" style="color:#7c3aed">—</div><div class="l">외근</div></div>
           </div>
         </div>
-        <div class="card"><h2>출퇴근 누락 <span style="font-weight:400;color:var(--muted);font-size:12px">· 오늘 미출근</span></h2>
-          <div id="miss-body"></div></div>
+        <div class="card" style="display:flex;flex-direction:column"><h2>출퇴근 누락 <span style="font-weight:400;color:var(--muted);font-size:12px">· 오늘 미출근</span></h2>
+          <div id="miss-body" style="flex:1;overflow:auto"></div></div>
       </div>
       <div class="card"><h2>관리권한 및 부서별 구성</h2><div id="perm-body"></div></div>
     </section>
@@ -274,7 +274,7 @@ function renderPerm(rows){const el=$('perm-body');if(!el)return;
   const deptHtml=DEPTS_ORDER.map(d=>{const m=byDept[d]||[];
     const inner=m.length?m.map(x=>nm(x)+(/부장$/.test(x.position||'')?' <b style="color:var(--brand)">(부장)</b>':'')).join('<br>'):'<span style="color:var(--muted)">구성원 없음</span>';
     return `<div style="margin:6px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden">
-      <div onclick="togglePerm(this)" style="padding:8px 11px;cursor:pointer;background:#EBEBEB;font-size:13px;font-weight:600;display:flex;justify-content:space-between">${d} (${m.length}명) <span class="arw">▽</span></div>
+      <div onclick="togglePerm(this)" style="padding:8px 11px;cursor:pointer;background:#F2F2F2;font-size:13px;font-weight:600;display:flex;justify-content:space-between">${d} (${m.length}명) <span class="arw">▽</span></div>
       <div style="display:none;padding:9px 12px;font-size:13px;line-height:1.7">${inner}</div>
     </div>`;}).join('');
   el.innerHTML=`<div class="g2">
