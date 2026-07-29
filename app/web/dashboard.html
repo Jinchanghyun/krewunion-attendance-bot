@@ -158,14 +158,13 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
     <section class="page hidden" id="page-members">
       <div class="card">
         <h2>구성원 · 권한 관리</h2>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:#EBEBEB;border-radius:10px">
           <input id="add-slack" placeholder="Slack 이메일 또는 멤버 ID" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:180px">
           <input id="add-name" placeholder="이름" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:100px">
           <select id="add-company" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <select id="add-dept" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
-          <button class="chip" onclick="syncSlack()">⟳ Slack 이름 동기화</button>
         </div>
         <table><thead><tr><th>이름</th><th>소속회사</th><th>부서</th><th>직책 · 권한</th><th></th></tr></thead><tbody id="role-body"></tbody></table>
         <div id="role-msg" style="font-size:12px;margin-top:10px;min-height:16px;"></div>
