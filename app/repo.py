@@ -326,6 +326,35 @@ def leave_balances(employee_id: str) -> list[dict]:
     return out
 
 
+def stats_leave_types(month: str) -> dict:
+    """월 휴가유형별 통계(전체) — 종류별 건수·일수."""
+    from app.domain.leave import LEAVE_LABEL
+    from app.domain.schedule import FRI
+    start, end = _month_range(month)
+    half = {"half_am", "half_pm", "health_check_am", "health_check_pm",
+            "birthday_am", "birthday_pm"}
+    agg: dict = {}
+    with session_scope() as s:
+        rows = s.scalars(select(LeaveRequest).where(
+            LeaveRequest.start <= end, LeaveRequest.end >= start)).all()
+        for l in rows:
+            a = agg.setdefault(l.kind, [0, 0.0])
+            a[0] += 1
+            if l.kind in half:
+                a[1] += 0.5
+            else:
+                cur, e2, d = max(l.start, start), min(l.end, end), 0
+                while cur <= e2:
+                    if cur.weekday() <= FRI:
+                        d += 1
+                    cur += timedelta(days=1)
+                a[1] += d
+    out = [{"kind": k, "label": LEAVE_LABEL.get(k, k), "count": v[0],
+            "days": round(v[1], 1)} for k, v in agg.items()]
+    out.sort(key=lambda x: -x["days"])
+    return {"month": month, "rows": out}
+
+
 def all_leave_balances() -> dict:
     """관리자용 — 전체 구성원의 일 단위 휴가 부여/사용/잔여."""
     groups = [{"group": g, "label": lbl} for g, (_, lbl) in _DAY_LEAVE_GROUPS.items()]

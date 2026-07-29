@@ -334,6 +334,12 @@ def leave_stats(_: dict = Depends(require_admin)):
     return repo.all_leave_balances()
 
 
+@api.get("/api/stats/leave-types")
+def stats_leave_types(month: str, _: dict = Depends(require_admin)):
+    """월 휴가유형별 통계(전체)."""
+    return repo.stats_leave_types(month)
+
+
 @api.get("/api/stats/monthly")
 def stats_monthly(month: str, _: dict = Depends(require_admin)):
     return repo.stats_monthly(month)

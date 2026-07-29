@@ -65,6 +65,29 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
 .more-btn:hover{background:var(--brand-soft);border-color:var(--brand);}
 .kpi.click{cursor:pointer;transition:box-shadow .15s,border-color .15s;}
 .kpi.click:hover{box-shadow:0 4px 14px rgba(79,70,229,.15);border-color:var(--brand);}
+/* 좌측 사이드바 레이아웃 */
+.layout{display:flex;min-height:100vh;}
+.side{width:210px;flex-shrink:0;background:#1e293b;color:#cbd5e1;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+.side-logo{display:flex;align-items:center;gap:9px;padding:18px 18px;color:#fff;font-weight:700;font-size:15px;border-bottom:1px solid #334155;}
+.side-nav{padding:10px 0;display:flex;flex-direction:column;}
+.nav{display:flex;align-items:center;gap:10px;padding:12px 20px;color:#cbd5e1;cursor:pointer;font-size:14px;font-weight:500;border-left:3px solid transparent;text-decoration:none;}
+.nav:hover{background:#273449;color:#fff;}
+.nav.on{background:#0f172a;color:#fff;border-left-color:var(--brand);font-weight:700;}
+.nav .ic{width:18px;text-align:center;}
+.main{flex:1;min-width:0;padding:22px 26px 60px;background:#f4f6fb;}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+.topbar h1{font-size:20px;margin:0;font-weight:700;}
+.topbar-r{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);}
+.topbar-r button{border:1px solid var(--brand);background:#fff;color:var(--brand);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;}
+.page.hidden{display:none;}
+.homekpi{display:flex;gap:22px;flex-wrap:wrap;}
+.homekpi .hk{text-align:center;min-width:64px;}
+.homekpi .hk .n{font-size:30px;font-weight:800;}
+.homekpi .hk .l{font-size:12px;color:var(--muted);margin-top:2px;}
+.perm-grp{margin-bottom:10px;}
+.perm-grp .gt{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:4px;}
+.perm-chip{display:inline-block;background:var(--slate-soft);border-radius:7px;padding:3px 9px;font-size:12px;margin:2px 4px 2px 0;}
+@media(max-width:800px){.side{width:56px;}.side-logo span,.nav span.t{display:none;}.nav{justify-content:center;padding:12px 0;}}
 @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
 @media(max-width:600px){
   .wrap{padding:14px 12px 48px;}
@@ -83,97 +106,105 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
 </head>
 <body>
 <div id="toast" class="toast"></div>
-<div class="wrap">
-  <div class="top">
-    <div class="brand">
-      <div class="logo" style="background:#FDE006;padding:0;overflow:hidden">
-        <svg viewBox="0 0 100 100" width="34" height="34" aria-label="크루유니언">
-          <circle cx="52" cy="46" r="38" fill="#111"/>
-          <path d="M30 78 L18 95 L46 80 Z" fill="#111"/>
-          <path d="M40 33 L40 52 a12 12 0 0 0 24 0 L64 33" fill="none" stroke="#FDE006" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+<input id="api" type="hidden"><input id="tok" type="hidden">
+<div class="layout">
+  <aside class="side">
+    <div class="side-logo">
+      <svg viewBox="0 0 100 100" width="26" height="26"><circle cx="52" cy="46" r="40" fill="#FDE006"/><path d="M40 33 L40 52 a12 12 0 0 0 24 0 L64 33" fill="none" stroke="#1e293b" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>크루유니언</span>
+    </div>
+    <nav class="side-nav" id="side-nav">
+      <a class="nav on" data-p="home"><span class="ic">🏠</span><span class="t">홈</span></a>
+      <a class="nav" data-p="members"><span class="ic">👥</span><span class="t">구성원</span></a>
+      <a class="nav" data-p="schedule"><span class="ic">📅</span><span class="t">근무일정</span></a>
+      <a class="nav" data-p="leave"><span class="ic">✈️</span><span class="t">휴가</span></a>
+      <a class="nav" data-p="requests"><span class="ic">📝</span><span class="t">요청내역</span> <span id="req-badge" style="display:none;background:#dc2626;color:#fff;border-radius:999px;font-size:10px;padding:1px 6px;margin-left:auto"></span></a>
+      <a class="nav" data-p="stats"><span class="ic">📊</span><span class="t">통계</span></a>
+    </nav>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <h1 id="page-title">홈</h1>
+      <div class="topbar-r">총 직원수 <b id="tot-emp" style="color:#111827">—</b> · <span id="mode"></span>
+        <button onclick="goToMe()">근무일정 관리</button></div>
+    </div>
+
+    <!-- 홈 -->
+    <section class="page" id="page-home">
+      <div class="card" style="display:flex;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+        <b id="home-date" style="font-size:17px"></b>
+        <div style="font-size:13px">총 인원 <b id="s-total" style="color:#111827">—</b></div>
+        <div style="font-size:13px">재택 <b id="s-remote" style="color:var(--blue)">—</b></div>
+        <div style="font-size:13px">휴가 <b id="s-off" style="color:var(--amber)">—</b></div>
+        <div style="font-size:13px">승인 대기 <b id="s-appr" style="color:#dc2626">—</b></div>
       </div>
-      <div><h1>크루유니언 근태봇 · 관리자 페이지</h1>
-        <p>시스템관리자 전용 · <span id="mode"></span></p></div>
-    </div>
-    <div class="conf">
-      <button onclick="openLeaveStats()" style="background:#fff;border:1px solid var(--brand);color:var(--brand)">휴가 통계</button>
-      <button onclick="goToMe()" style="background:#fff;border:1px solid var(--brand);color:var(--brand)">근무일정 관리</button>
-      <!-- API 주소·토큰은 매직 링크에서 자동 입력되므로 숨김(값은 JS가 사용) -->
-      <input id="api" type="hidden">
-      <input id="tok" type="hidden">
-    </div>
-  </div>
-
-  <div class="kpis">
-    <div class="kpi"><div class="lab">오늘 출근률</div><div class="val" id="k-rate">—</div><div class="sub" id="k-rate-sub">—</div></div>
-    <div class="kpi"><div class="lab">재택근무</div><div class="val" id="k-remote">—</div><div class="sub">명</div></div>
-    <div class="kpi"><div class="lab">외근</div><div class="val" id="k-field">—</div><div class="sub">명</div></div>
-    <div class="kpi"><div class="lab">휴가</div><div class="val" id="k-off">—</div><div class="sub">명</div></div>
-    <div class="kpi click" id="kpi-appr" onclick="openAppr()" title="클릭하면 승인 요청 목록"><div class="lab">승인 대기 <span style="font-size:1em">▷</span></div><div class="val" id="k-appr">—</div><div class="sub">건 · 클릭</div></div>
-  </div>
-
-  <!-- 실시간 근무현황: 전체폭 (인원 많을 때 좌우로 넓게) -->
-  <div class="card">
-    <h2>실시간 근무현황</h2>
-    <div class="filters" id="sfilters">
-      <span class="chip on" data-s="">전체</span>
-      <span class="chip" data-s="work">근무중</span>
-      <span class="chip" data-s="remote">재택</span>
-      <span class="chip" data-s="field">외근</span>
-      <span class="chip" data-s="off">휴가</span>
-    </div>
-    <table><thead><tr><th>직원</th><th>부서</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
-    <div class="more-btn" id="live-more" onclick="toggleLive()" style="display:none"></div>
-  </div>
-
-  <!-- 월 근무 통계 · 직원별 통계: 좌우 나란히 -->
-  <div class="g2">
-    <div class="card">
-      <h2>월 근무 통계 <span style="color:var(--muted);font-weight:400" id="mon-label"></span></h2>
-      <div class="chart-box"><canvas id="chart"></canvas></div>
-    </div>
-    <div class="card">
-      <h2>직원별 통계</h2>
-      <div class="scroll-area">
-        <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
-          <tbody id="emp-body"></tbody></table>
+      <div class="g2">
+        <div class="card"><h2>오늘의 근무 현황</h2>
+          <div class="homekpi">
+            <div class="hk"><div class="n" id="k-present" style="color:var(--brand)">—</div><div class="l">출근</div></div>
+            <div class="hk"><div class="n" id="k-off" style="color:var(--amber)">—</div><div class="l">휴가</div></div>
+            <div class="hk"><div class="n" id="k-absent" style="color:#dc2626">—</div><div class="l">미출근</div></div>
+            <div class="hk"><div class="n" id="k-remote" style="color:var(--blue)">—</div><div class="l">재택</div></div>
+            <div class="hk"><div class="n" id="k-field" style="color:#7c3aed">—</div><div class="l">외근</div></div>
+          </div>
+        </div>
+        <div class="card"><h2>출퇴근 누락 <span style="font-weight:400;color:var(--muted);font-size:12px">· 오늘 미출근</span></h2>
+          <div id="miss-body"></div></div>
       </div>
-    </div>
-  </div>
+      <div class="card"><h2>구성원 권한</h2><div id="perm-body"></div></div>
+    </section>
 
-  <!-- 휴가 통계 팝업 -->
-  <div id="leaveStatsModal" class="modal-bg" onclick="if(event.target===this)closeLeaveStats()">
-    <div class="modal" style="max-width:760px">
-      <div class="modal-head"><h2>휴가 통계 (전체 구성원)</h2><button class="x" onclick="closeLeaveStats()">✕</button></div>
-      <div id="ls-body"></div>
-    </div>
-  </div>
+    <!-- 구성원 -->
+    <section class="page hidden" id="page-members">
+      <div class="card">
+        <h2>구성원 · 권한 관리</h2>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
+          <input id="add-slack" placeholder="Slack 이메일 또는 멤버 ID" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:180px">
+          <input id="add-name" placeholder="이름" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:100px">
+          <select id="add-dept" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
+          <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
+          <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
+          <button class="chip" onclick="syncSlack()">⟳ Slack 이름 동기화</button>
+        </div>
+        <table><thead><tr><th>이름</th><th>부서</th><th>직책 · 권한</th><th></th></tr></thead><tbody id="role-body"></tbody></table>
+        <div id="role-msg" style="font-size:12px;margin-top:10px;min-height:16px;"></div>
+      </div>
+    </section>
 
-  <!-- 승인 요청: 상단 '승인 대기' KPI 클릭 시 팝업 -->
-  <div id="apprModal" class="modal-bg" onclick="if(event.target===this)closeAppr()">
-    <div class="modal">
-      <div class="modal-head"><h2>승인 요청 (연장·휴일)</h2><button class="x" onclick="closeAppr()">✕</button></div>
-      <div id="appr-list"></div>
-    </div>
-  </div>
+    <!-- 근무일정 -->
+    <section class="page hidden" id="page-schedule">
+      <div class="card">
+        <h2>실시간 근무현황</h2>
+        <div class="filters" id="sfilters">
+          <span class="chip on" data-s="">전체</span><span class="chip" data-s="work">근무중</span>
+          <span class="chip" data-s="remote">재택</span><span class="chip" data-s="field">외근</span><span class="chip" data-s="off">휴가</span>
+        </div>
+        <table><thead><tr><th>직원</th><th>부서</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
+        <div class="more-btn" id="live-more" onclick="toggleLive()" style="display:none"></div>
+      </div>
+    </section>
 
-  <div class="card">
-    <h2>구성원 · 권한 관리</h2>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
-      <input id="add-slack" placeholder="Slack 이메일 또는 멤버 ID" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:180px">
-      <input id="add-name" placeholder="이름" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:100px">
-      <select id="add-dept" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
-      <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
-      <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
-      <button class="chip" onclick="syncSlack()">⟳ Slack 이름 동기화</button>
-    </div>
-    <table>
-      <thead><tr><th>이름</th><th>부서</th><th>직책 · 권한</th><th></th></tr></thead>
-      <tbody id="role-body"></tbody>
-    </table>
-    <div id="role-msg" style="font-size:12px;margin-top:10px;min-height:16px;"></div>
-  </div>
+    <!-- 휴가 -->
+    <section class="page hidden" id="page-leave">
+      <div class="card"><h2>구성원 휴가 내역 <span style="font-weight:400;color:var(--muted);font-size:12px">· 잔여/부여(사용), 단위 일</span></h2><div id="ls-body"></div></div>
+    </section>
+
+    <!-- 요청내역 -->
+    <section class="page hidden" id="page-requests">
+      <div class="card"><h2>초과·휴일 근로 승인</h2><div id="appr-list"></div></div>
+    </section>
+
+    <!-- 통계 -->
+    <section class="page hidden" id="page-stats">
+      <div class="g2">
+        <div class="card"><h2>월 근무 통계 <span style="color:var(--muted);font-weight:400" id="mon-label"></span></h2><div class="chart-box"><canvas id="chart"></canvas></div></div>
+        <div class="card"><h2>직원별 통계</h2>
+          <div class="scroll-area"><table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead><tbody id="emp-body"></tbody></table></div>
+        </div>
+      </div>
+      <div class="card"><h2>월 휴가유형별 통계 <span id="lt-label" style="color:var(--muted);font-weight:400"></span></h2><div id="lt-body"></div></div>
+    </section>
+  </main>
 </div>
 
 <script>
@@ -213,35 +244,33 @@ async function api(path){
 const SB={work:['근무중','b-work'],remote:['재택','b-remote'],field:['외근','b-field'],off:['휴가','b-off'],none:['미출근','b-none']};
 
 function renderOverview(o){
-  $('k-rate').textContent=o.attendance_rate+'%';
-  $('k-rate-sub').textContent=(o.present??'-')+' / '+(o.eligible??'-')+'명';
-  $('k-remote').textContent=o.remote; $('k-field').textContent=o.field;
-  $('k-off').textContent=o.off;
-  const ap=o.pending_approvals||0; $('k-appr').textContent=ap;
-  const kc=$('kpi-appr'), red=ap>0;
-  if(kc){ kc.style.borderColor=red?'#dc2626':''; kc.style.background=red?'#fef2f2':'';
-    $('k-appr').style.color=red?'#dc2626':'';
-    kc.querySelector('.lab').style.color=red?'#dc2626':'';
-    kc.querySelector('.sub').style.color=red?'#dc2626':''; }
+  const present=o.present??0, elig=o.eligible??0;
+  const set=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  set('k-present',present); set('k-off',o.off); set('k-absent',Math.max(0,elig-present));
+  set('k-remote',o.remote); set('k-field',o.field); set('tot-emp',elig);
+  set('s-total',elig); set('s-remote',o.remote); set('s-off',o.off);
+  const ap=o.pending_approvals||0; set('s-appr',ap);
+  const b=$('req-badge');
+  if(b){ b.textContent=ap||''; b.style.display=ap?'inline-block':'none'; }
 }
-let liveExpanded=false; const LIVE_LIMIT=8;
-function renderLive(rows){
-  const f=rows.filter(r=>!statusFilter||r.status===statusFilter);
-  const show=liveExpanded?f:f.slice(0,LIVE_LIMIT);
-  $('live-body').innerHTML = show.length? show.map(r=>{
-    const [lbl,cls]=SB[r.status]||SB.none;
-    return `<tr><td>${r.name}</td><td>${r.dept}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
-  }).join('') : '<tr><td colspan="3" class="empty">해당 상태의 직원이 없습니다</td></tr>';
-  const more=$('live-more');
-  if(more){ if(f.length>LIVE_LIMIT){ more.style.display='block'; more.textContent=liveExpanded?'▲ 접기':`▼ 전체 ${f.length}명 보기`; } else more.style.display='none'; }
+function renderMiss(rows){const el=$('miss-body');if(!el)return;
+  const miss=(rows||[]).filter(r=>r.status==='none');
+  el.innerHTML=miss.length?'<table><tbody>'+miss.map(r=>`<tr><td>${r.name}</td><td style="color:var(--muted)">${r.dept}</td><td><span class="badge b-none">미출근</span></td></tr>`).join('')+'</tbody></table>':'<div class="empty">누락(미출근) 인원이 없습니다</div>';
 }
-window.toggleLive=()=>{ liveExpanded=!liveExpanded; renderLive(window._live||[]); };
-window.openAppr=()=>{ $('apprModal').classList.add('show'); };
-window.closeAppr=()=>{ $('apprModal').classList.remove('show'); };
-window.closeLeaveStats=()=>{ $('leaveStatsModal').classList.remove('show'); };
-window.openLeaveStats=async()=>{
+function renderPerm(rows){const el=$('perm-body');if(!el)return;
+  const by={};(rows||[]).forEach(r=>{const p=r.position||'전임 스탭';(by[p]=by[p]||[]).push(r);});
+  const admins=['지회장','수석부지회장','사무장'];
+  let html='<div class="perm-grp"><div class="gt">관리자</div>'+admins.map(p=>by[p]?`<span class="perm-chip"><b>${p}</b> ${by[p].map(m=>m.name).join(', ')}</span>`:'').join('')+(admins.some(p=>by[p])?'':'<span style="color:var(--muted);font-size:12px">지정된 관리자 없음</span>')+'</div>';
+  const byDept={};(rows||[]).forEach(r=>{const d=r.dept||'미지정';(byDept[d]=byDept[d]||[]).push(r);});
+  html+='<div class="perm-grp"><div class="gt">부서별 구성</div>'+Object.keys(byDept).sort().map(d=>{
+    const mem=byDept[d];
+    return `<div style="margin:4px 0;font-size:13px"><b>${d}</b> <span style="color:var(--muted)">(${mem.length}명)</span> · ${mem.map(m=>m.name+(/부장$/.test(m.position||'')?'<b style="color:var(--brand)">(부장)</b>':'')).join(', ')}</div>`;
+  }).join('')+'</div>';
+  el.innerHTML=html;
+}
+let liveExpanded0=false;
+async function loadLeaveStats(){
   const base=$('api').value.trim(), tok=$('tok').value.trim();
-  $('leaveStatsModal').classList.add('show');
   const el=$('ls-body'); el.innerHTML='<div class="empty">불러오는 중…</div>';
   try{
     const r=await fetch(base+'/api/leave-stats',{headers:{Authorization:'Bearer '+tok}});
@@ -255,10 +284,37 @@ window.openLeaveStats=async()=>{
         return b?`<td class="num"><b style="color:${b.remaining<0?'#dc2626':'#0369a1'}">${b.remaining}</b>/${b.granted} <span style="color:var(--muted);font-size:11px">(${b.used})</span></td>`:'<td class="num" style="color:var(--muted)">—</td>';}).join('');
       return `<tr><td>${nm}</td><td>${row.dept}</td>${cells}</tr>`;
     }).join('');
-    el.innerHTML=`<div style="overflow-x:auto"><table><thead>${head}</thead><tbody>${body||'<tr><td class="empty" colspan="7">구성원이 없습니다</td></tr>'}</tbody></table></div>
-      <div style="font-size:11px;color:var(--muted);margin-top:8px">셀 = 잔여/부여 (괄호=사용, 단위 일). 각자 휴가 관리에서 켜고 수량을 입력한 항목만 표시됩니다.</div>`;
+    el.innerHTML=`<div style="overflow-x:auto"><table><thead>${head}</thead><tbody>${body||'<tr><td class="empty">구성원이 없습니다</td></tr>'}</tbody></table></div>`;
   }catch(e){ el.innerHTML='<div class="empty">불러오기 실패: '+e+'</div>'; }
+}
+async function loadLeaveTypes(){const el=$('lt-body');if(!el)return;el.innerHTML='<div class="empty">불러오는 중…</div>';
+  const base=$('api').value.trim(), tok=$('tok').value.trim();
+  try{const r=await fetch(base+'/api/stats/leave-types?month='+MONTH,{headers:{Authorization:'Bearer '+tok}});const j=await r.json();
+    const lab=$('lt-label'); if(lab)lab.textContent='· '+MONTH;
+    const rows=j.rows||[];
+    el.innerHTML=rows.length?'<table><thead><tr><th>휴가 종류</th><th class="num">건수</th><th class="num">일수</th></tr></thead><tbody>'+rows.map(x=>`<tr><td>${x.label}</td><td class="num">${x.count}</td><td class="num">${x.days}</td></tr>`).join('')+'</tbody></table>':'<div class="empty">이 달 휴가 사용이 없습니다</div>';
+  }catch(e){el.innerHTML='<div class="empty">불러오기 실패</div>';}
+}
+const TITLES={home:'홈',members:'구성원',schedule:'근무일정',leave:'휴가',requests:'요청내역',stats:'통계'};
+window.go=function(p){document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('on',n.dataset.p===p));
+  document.querySelectorAll('.page').forEach(s=>s.classList.toggle('hidden',s.id!=='page-'+p));
+  const t=$('page-title'); if(t)t.textContent=TITLES[p]||'';
+  if(p==='leave')loadLeaveStats();
+  if(p==='stats'){ loadLeaveTypes(); if(window._mo)renderMonthly(window._mo); }
 };
+document.getElementById('side-nav').addEventListener('click',e=>{const a=e.target.closest('.nav');if(a)go(a.dataset.p);});
+let liveExpanded=false; const LIVE_LIMIT=8;
+function renderLive(rows){
+  const f=rows.filter(r=>!statusFilter||r.status===statusFilter);
+  const show=liveExpanded?f:f.slice(0,LIVE_LIMIT);
+  $('live-body').innerHTML = show.length? show.map(r=>{
+    const [lbl,cls]=SB[r.status]||SB.none;
+    return `<tr><td>${r.name}</td><td>${r.dept}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">해당 상태의 직원이 없습니다</td></tr>';
+  const more=$('live-more');
+  if(more){ if(f.length>LIVE_LIMIT){ more.style.display='block'; more.textContent=liveExpanded?'▲ 접기':`▼ 전체 ${f.length}명 보기`; } else more.style.display='none'; }
+}
+window.toggleLive=()=>{ liveExpanded=!liveExpanded; renderLive(window._live||[]); };
 function renderMonthly(m){
   $('mon-label').textContent='· '+m.month;
   const data=[m.worked,m.overtime,m.night,m.holiday].map(x=>Math.round(x));
@@ -320,11 +376,11 @@ async function reload(){
     demo=true; o=DEMO.overview; l=DEMO.live.rows; mo=DEMO.monthly; be=DEMO.byemp.rows; pe=DEMO.pending.rows; }
   $('mode').textContent = demo?'데모 데이터(미연결)':'API 연결됨';
   $('mode').className = demo?'badge-demo':'';
-  window._live=l;
-  renderOverview(o); renderLive(l); renderMonthly(mo); renderByEmp(be); renderPending(pe);
-  if(demo){ renderRoles(DEMO_EMP, null); }
+  window._live=l; window._mo=mo;
+  renderOverview(o); renderLive(l); renderMiss(l); renderMonthly(mo); renderByEmp(be); renderPending(pe);
+  if(demo){ renderRoles(DEMO_EMP, null); renderPerm(DEMO_EMP); }
   else {
-    try{ const emp=await api('/api/employees'); renderRoles(emp.rows, emp.me); }
+    try{ const emp=await api('/api/employees'); renderRoles(emp.rows, emp.me); renderPerm(emp.rows); }
     catch(e){ $('role-body').innerHTML='<tr><td colspan="4" class="empty">권한 관리는 인사담당자·시스템관리자만 볼 수 있습니다</td></tr>'; }
   }
 }
@@ -437,6 +493,7 @@ const _tok=_urlTok||_savedTok;
 if(_tok){ $('tok').value=_tok; if(!$('api').value) $('api').value=location.origin;
   try{ sessionStorage.setItem('sam_token',_tok); }catch(e){}
   if(_urlTok){ try{ history.replaceState(null,'',location.pathname); }catch(e){} } }
+(function(){const n=new Date();const D=['일','월','화','수','목','금','토'];const s=n.getFullYear()+'년 '+(n.getMonth()+1)+'월 '+n.getDate()+'일 ('+D[n.getDay()]+')';const e=$('home-date');if(e)e.textContent=s;})();
 reload();
 </script>
 </body>

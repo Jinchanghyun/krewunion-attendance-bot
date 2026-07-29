@@ -209,6 +209,11 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
 <style>
   input[type=time],input[type=date]{accent-color:#E6E6E6;}
   input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box-shadow:0 0 0 3px #E6E6E6!important;}
+  .io{display:flex;align-items:center;gap:4px;font-size:11px;margin-top:3px;font-variant-numeric:tabular-nums;color:#334155;}
+  .io-l{font-size:9px;font-weight:700;color:#fff;padding:1px 5px;border-radius:5px;line-height:1.5;}
+  .io-in{background:#4f46e5;} .io-out{background:#64748b;}
+  .io-late{color:#dc2626;font-weight:700;}
+  .sched{font-size:11px;color:var(--muted);margin-top:3px;}
 </style>
 <!-- 출퇴근 편집 팝업 -->
 <div id="edit-modal" style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:900;padding:50px 16px" onclick="if(event.target===this)closeEdit()">
@@ -343,8 +348,16 @@ function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const s
     if(date.getDay()===0)cls+='';
     if(lv[k]){const [lb,c]=LV[lv[k]]||['휴가','bg-off'];inner+=`<div class="badge ${c}">${lb}</div>`;}
     else if(isNol(date)){cls+=' off';inner+=`<div class="badge bg-nol">놀금</div>`;}
-    else if(rec[k]){const [lb,c]=TYPE[rec[k].type]||['출','bg-work'];inner+=`<div class="badge ${c}">${lb} ${rec[k].checkin||''}</div>`;
-      if(rec[k].checkout)inner+=`<div class="tt">~${rec[k].checkout}</div>`;
+    else if(rec[k]){const r=rec[k];
+      if(r.type==='dayoff'){inner+=`<div class="badge bg-off">데이오프</div>`;}
+      else{
+        const tn={remote:'재택',field:'외근'}[r.type];
+        if(tn)inner+=`<div class="badge ${TYPE[r.type][1]}">${tn}</div>`;
+        // 기존(소정) 출퇴근 흐리게 → 그 아래 실제 출퇴근
+        inner+=`<div class="sched">${(CFG&&CFG.checkin)||'09:00'}~${(CFG&&CFG.checkout)||'18:00'}</div>`;
+        if(r.checkin)inner+=`<div class="io"><span class="io-l io-in">출근</span> ${r.checkin}</div>`;
+        if(r.checkout)inner+=`<div class="io"><span class="io-l io-out">퇴근</span> ${r.checkout}</div>`;
+      }
       if(isShort(date))inner+=`<div class="badge bg-short">단축</div>`;}
     else if(FULFILLED && date.getDay()>=1 && date.getDay()<=5 && k>=iso(TODAY)){
       inner+=`<div class="badge bg-off" title="소정근로 충족 — 데이오프">데이오프</div>`;}
