@@ -409,8 +409,8 @@ const SINGLE_LV=['half_am','half_pm','health_check_am','health_check_pm','birthd
 async function loadLeave(){try{const d=await api('/api/my/leave');const P={applied:['확정','p-ok'],cancelled:['취소','p-cx']};
   const bals=d.balances||[];const lb=$('lv-balances');
   if(lb)lb.innerHTML=bals.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+bals.map(b=>{
-    const body=b.used_only?`사용 <b>${b.used}</b>일`:`잔여 <b style="color:#0369a1">${b.remaining}</b>/${b.granted}일 <span style="color:var(--muted)">(사용 ${b.used})</span>`;
-    return `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:9px;padding:7px 11px;font-size:12px"><b>${b.label}</b> ${body}</div>`;}).join('')+'</div>':'';
+    const body=b.used_only?`사용 <b>${b.used}</b>일`:`잔여 <b style="color:#0369a1">${b.remaining}</b>/${b.granted}일`;
+    return `<div style="background:#E6E6E6;border-radius:9px;padding:7px 11px;font-size:12px"><b>${b.label}</b> ${body}</div>`;}).join('')+'</div>':'';
   $('lv-body').innerHTML=d.rows.length?d.rows.map(r=>{const [lb,c]=P[r.status]||['확정','p-ok'];
     const per=r.start===r.end?r.start:(r.start+' ~ '+r.end);
     const cancel=r.status==='applied'?`<button class="btn btn-g" style="padding:4px 10px" onclick="cancelLeave(${r.id})">취소</button>`:'';
