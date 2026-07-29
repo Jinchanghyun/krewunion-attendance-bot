@@ -51,6 +51,18 @@ tbody tr:last-child td{border-bottom:none;}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(24px);background:#111827;color:#fff;padding:11px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .25s,transform .25s;z-index:1000;pointer-events:none;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .toast.err{background:#b91c1c;}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:900;padding:56px 16px;}
+.modal-bg.show{display:flex;}
+.modal{background:var(--card);border-radius:16px;padding:16px 18px;max-width:540px;width:100%;max-height:80vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.modal-head h2{margin:0;font-size:15px;font-weight:700;}
+.modal-head .x{border:none;background:none;font-size:18px;cursor:pointer;color:var(--muted);line-height:1;}
+.scroll-area{max-height:360px;overflow-y:auto;}
+.scroll-area thead th{position:sticky;top:0;background:var(--card);z-index:1;}
+.more-btn{text-align:center;padding:9px;margin-top:8px;border:1px dashed var(--line);border-radius:9px;color:var(--brand);font-size:12px;cursor:pointer;font-weight:600;}
+.more-btn:hover{background:var(--brand-soft);border-color:var(--brand);}
+.kpi.click{cursor:pointer;transition:box-shadow .15s,border-color .15s;}
+.kpi.click:hover{box-shadow:0 4px 14px rgba(79,70,229,.15);border-color:var(--brand);}
 @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
 @media(max-width:600px){
   .wrap{padding:14px 12px 48px;}
@@ -95,7 +107,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="kpi"><div class="lab">재택근무</div><div class="val" id="k-remote">—</div><div class="sub">명</div></div>
     <div class="kpi"><div class="lab">외근</div><div class="val" id="k-field">—</div><div class="sub">명</div></div>
     <div class="kpi"><div class="lab">휴가</div><div class="val" id="k-off">—</div><div class="sub">명</div></div>
-    <div class="kpi"><div class="lab">승인 대기</div><div class="val" id="k-appr">—</div><div class="sub">건</div></div>
+    <div class="kpi click" onclick="openAppr()" title="클릭하면 승인 요청 목록"><div class="lab">승인 대기 ▸</div><div class="val" id="k-appr">—</div><div class="sub">건 · 클릭</div></div>
   </div>
 
   <!-- 실시간 근무현황: 전체폭 (인원 많을 때 좌우로 넓게) -->
@@ -109,6 +121,7 @@ tbody tr:last-child td{border-bottom:none;}
       <span class="chip" data-s="off">휴가</span>
     </div>
     <table><thead><tr><th>직원</th><th>부서</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
+    <div class="more-btn" id="live-more" onclick="toggleLive()" style="display:none"></div>
   </div>
 
   <!-- 월 근무 통계 · 직원별 통계: 좌우 나란히 -->
@@ -119,12 +132,20 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div class="card">
       <h2>직원별 통계 (시간)</h2>
-      <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
-        <tbody id="emp-body"></tbody></table>
+      <div class="scroll-area">
+        <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
+          <tbody id="emp-body"></tbody></table>
+      </div>
     </div>
   </div>
 
-  <div class="card"><h2>승인센터 (연장·휴일)</h2><div id="appr-list"></div></div>
+  <!-- 승인 요청: 상단 '승인 대기' KPI 클릭 시 팝업 -->
+  <div id="apprModal" class="modal-bg" onclick="if(event.target===this)closeAppr()">
+    <div class="modal">
+      <div class="modal-head"><h2>승인 요청 (연장·휴일)</h2><button class="x" onclick="closeAppr()">✕</button></div>
+      <div id="appr-list"></div>
+    </div>
+  </div>
 
   <div class="card">
     <h2>구성원 · 권한 관리</h2>
@@ -187,13 +208,20 @@ function renderOverview(o){
   $('k-remote').textContent=o.remote; $('k-field').textContent=o.field;
   $('k-off').textContent=o.off; $('k-appr').textContent=o.pending_approvals;
 }
+let liveExpanded=false; const LIVE_LIMIT=8;
 function renderLive(rows){
   const f=rows.filter(r=>!statusFilter||r.status===statusFilter);
-  $('live-body').innerHTML = f.length? f.map(r=>{
+  const show=liveExpanded?f:f.slice(0,LIVE_LIMIT);
+  $('live-body').innerHTML = show.length? show.map(r=>{
     const [lbl,cls]=SB[r.status]||SB.none;
     return `<tr><td>${r.name}</td><td>${r.dept}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
   }).join('') : '<tr><td colspan="3" class="empty">해당 상태의 직원이 없습니다</td></tr>';
+  const more=$('live-more');
+  if(more){ if(f.length>LIVE_LIMIT){ more.style.display='block'; more.textContent=liveExpanded?'▲ 접기':`▼ 전체 ${f.length}명 보기`; } else more.style.display='none'; }
 }
+window.toggleLive=()=>{ liveExpanded=!liveExpanded; renderLive(window._live||[]); };
+window.openAppr=()=>{ $('apprModal').classList.add('show'); };
+window.closeAppr=()=>{ $('apprModal').classList.remove('show'); };
 function renderMonthly(m){
   $('mon-label').textContent='· '+m.month;
   const data=[m.worked,m.overtime,m.night,m.holiday].map(x=>Math.round(x));
