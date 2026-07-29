@@ -17,7 +17,8 @@ class Employee(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)          # 사번 K-2041
     slack_user_id: Mapped[str] = mapped_column(String, index=True, unique=True)
     team_id: Mapped[str] = mapped_column(String)                        # Slack team
-    name: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String)                          # Slack Full name
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)  # Slack Display name
     dept: Mapped[str] = mapped_column(String)
     manager_id: Mapped[str | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
     hire_date: Mapped[Date] = mapped_column(Date)

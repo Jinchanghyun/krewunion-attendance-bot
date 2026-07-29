@@ -50,6 +50,7 @@ def _ensure_columns() -> None:
     from sqlalchemy import text
     stmts = [
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS position VARCHAR DEFAULT '일반'",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS display_name VARCHAR",
     ]
     for st in stmts:
         try:

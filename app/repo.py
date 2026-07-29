@@ -337,6 +337,12 @@ def is_manager_of(approver_slack_id: str, employee_id: str | None = None) -> boo
 ROLES = ("employee", "manager", "hr", "sysadmin")
 _ASSIGNERS = {"hr", "sysadmin"}          # 역할을 부여할 수 있는 주체
 
+# 슈퍼유저: 모든 권한 검사 예외(테스트·운영용). 창현(지회장/개발자)
+SUPERUSER_SLACK_IDS = {"U02V1HKUJNA"}
+
+# 단일 직책 — 각 1명만. 새로 임명하면 기존 보유자는 '일반'으로 자동 인수인계(강등).
+SINGLE_POSITIONS = ("지회장", "수석부지회장", "사무장")
+
 # 조합 직책(표시용) → 권한 등급 매핑
 POSITIONS = ("지회장", "수석부지회장", "사무장", "부지회장", "전임스텝",
              "조직부장", "정책홍보부장", "재무운영부장", "대외협력부장", "일반")
@@ -361,6 +367,8 @@ def approvers() -> list[dict]:
 
 
 def is_approver(approver_slack_id: str) -> bool:
+    if approver_slack_id in SUPERUSER_SLACK_IDS:
+        return True
     with session_scope() as s:
         a = s.scalar(select(Employee).where(Employee.slack_user_id == approver_slack_id))
         return bool(a and (getattr(a, "position", "") in APPROVER_POSITIONS
@@ -368,28 +376,44 @@ def is_approver(approver_slack_id: str) -> bool:
 
 
 def assign_position(actor_slack_id: str, target_employee_id: str, position: str) -> None:
-    """직책 지정 — 직책에 매핑된 권한(role)도 함께 설정. hr/sysadmin만 가능."""
+    """직책 지정 — 직책에 매핑된 권한(role)도 함께 설정.
+
+    규칙:
+    - 임명 권한: 지회장·수석부지회장·사무장(hr/sysadmin). 창현(슈퍼유저)은 모든 예외.
+    - 단일 직책(지회장·수석부지회장·사무장)은 각 1명만 → 새로 임명하면 기존 보유자를
+      '일반'으로 자동 인수인계(강등).
+    """
     if position not in POSITIONS:
         raise ValueError(f"알 수 없는 직책: {position}")
     new_role = POSITION_ROLE[position]
+    is_super = actor_slack_id in SUPERUSER_SLACK_IDS
     with session_scope() as s:
         actor = s.scalar(select(Employee).where(Employee.slack_user_id == actor_slack_id))
-        if not actor or actor.role not in _ASSIGNERS:
+        if not is_super and (not actor or actor.role not in _ASSIGNERS):
             raise PermissionError("직책을 지정할 권한이 없습니다(사무장·지회장급 전용).")
         target = s.get(Employee, target_employee_id)
         if target is None:
             raise LookupError("대상 직원을 찾을 수 없습니다.")
-        if (new_role == "sysadmin" or target.role == "sysadmin") and actor.role != "sysadmin":
-            raise PermissionError("시스템관리자급 직책은 지회장(sysadmin)만 지정할 수 있습니다.")
-        if target.role == "sysadmin" and new_role != "sysadmin" and _count_sysadmins(s) <= 1:
+        if not is_super:
+            if (new_role == "sysadmin" or target.role == "sysadmin") and actor.role != "sysadmin":
+                raise PermissionError("시스템관리자급 직책은 지회장(sysadmin)만 지정할 수 있습니다.")
+        if position in SINGLE_POSITIONS:
+            # 단일 직책: 기존 보유자 → '일반'으로 자동 인수인계
+            for other in s.scalars(select(Employee).where(
+                    Employee.position == position, Employee.id != target_employee_id)).all():
+                other.position = "일반"
+                other.role = "employee"
+        elif not is_super and target.role == "sysadmin" and new_role != "sysadmin" \
+                and _count_sysadmins(s) <= 1:
             raise PermissionError("마지막 시스템관리자는 강등할 수 없습니다. 인수인계를 사용하세요.")
         target.position = position
         target.role = new_role
 
 
 def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
-                    position: str = "일반") -> None:
-    """구성원 등록/수정 — 직책에 맞는 권한(role)도 함께 설정."""
+                    position: str = "일반", display_name: str | None = None) -> None:
+    """구성원 등록/수정 — 직책에 맞는 권한(role)도 함께 설정.
+    name=Slack Full name, display_name=Slack Display name(표시용)."""
     from datetime import date
     role = POSITION_ROLE.get(position, "employee")
     with session_scope() as s:
@@ -399,6 +423,8 @@ def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
             s.add(e)
         e.slack_user_id = slack
         e.name = name
+        if display_name is not None:
+            e.display_name = display_name
         e.dept = dept
         e.position = position
         e.role = role
@@ -426,7 +452,9 @@ def delete_employee(emp_id: str) -> None:
 
 def list_all_employees() -> list[dict]:
     with session_scope() as s:
-        return [{"id": e.id, "name": e.name, "dept": e.dept, "role": e.role,
+        return [{"id": e.id, "name": e.name,
+                 "display_name": getattr(e, "display_name", None) or "",
+                 "dept": e.dept, "role": e.role,
                  "position": getattr(e, "position", "일반"), "slack": e.slack_user_id}
                 for e in s.scalars(select(Employee).order_by(Employee.dept, Employee.name)).all()]
 
@@ -462,17 +490,19 @@ def assign_role(actor_slack_id: str, target_employee_id: str, role: str) -> None
     """
     if role not in ROLES:
         raise ValueError(f"알 수 없는 역할: {role}")
+    is_super = actor_slack_id in SUPERUSER_SLACK_IDS
     with session_scope() as s:
         actor = s.scalar(select(Employee).where(Employee.slack_user_id == actor_slack_id))
-        if not actor or actor.role not in _ASSIGNERS:
+        if not is_super and (not actor or actor.role not in _ASSIGNERS):
             raise PermissionError("역할을 지정할 권한이 없습니다(hr/sysadmin 전용).")
         target = s.get(Employee, target_employee_id)
         if target is None:
             raise LookupError("대상 직원을 찾을 수 없습니다.")
-        if (role == "sysadmin" or target.role == "sysadmin") and actor.role != "sysadmin":
-            raise PermissionError("시스템 관리자 권한은 sysadmin만 지정/회수할 수 있습니다.")
-        if target.role == "sysadmin" and role != "sysadmin" and _count_sysadmins(s) <= 1:
-            raise PermissionError("마지막 시스템 관리자는 해제할 수 없습니다. 인수인계(handover)를 사용하세요.")
+        if not is_super:
+            if (role == "sysadmin" or target.role == "sysadmin") and actor.role != "sysadmin":
+                raise PermissionError("시스템 관리자 권한은 sysadmin만 지정/회수할 수 있습니다.")
+            if target.role == "sysadmin" and role != "sysadmin" and _count_sysadmins(s) <= 1:
+                raise PermissionError("마지막 시스템 관리자는 해제할 수 없습니다. 인수인계(handover)를 사용하세요.")
         target.role = role
 
 

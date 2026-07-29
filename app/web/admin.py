@@ -187,10 +187,14 @@ def require_admin(authorization: str = Header(default="")) -> dict:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
     except Exception:
         raise HTTPException(401, "유효하지 않은 토큰입니다.")
-    role = repo.role_of(payload.get("slack_user_id", ""))
+    uid = payload.get("slack_user_id", "")
+    # 창현(슈퍼유저)은 항상 최상위 권한으로 통과 — 테스트·운영용 예외
+    if uid in repo.SUPERUSER_SLACK_IDS:
+        return {"role": "sysadmin", "slack_user_id": uid}
+    role = repo.role_of(uid)
     if role not in ("hr", "sysadmin"):
         raise HTTPException(403, "통계 접근 권한이 없습니다.")
-    return {"role": role, "slack_user_id": payload.get("slack_user_id")}
+    return {"role": role, "slack_user_id": uid}
 
 
 # ── 통계 엔드포인트 (웹 대시보드가 호출) ───────────────
@@ -272,22 +276,42 @@ def _invite_dm(slack: str, name: str) -> bool:
         return False
 
 
+def _slack_profile(slack: str) -> dict:
+    """Slack users.info로 Full name(real_name)·Display name(display_name) 조회."""
+    try:
+        from app.slack.app import app as slack_app
+        r = slack_app.client.users_info(user=slack)
+        p = (r.get("user") or {}).get("profile", {}) or {}
+        full = p.get("real_name") or r["user"].get("real_name") or ""
+        disp = p.get("display_name") or ""
+        return {"full": full.strip(), "display": disp.strip()}
+    except Exception as e:
+        print("slack profile lookup failed:", e)
+        return {"full": "", "display": ""}
+
+
 @api.post("/api/employees/add")
 async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
-    """구성원 추가(Slack ID 기준) + 초대 DM 발송."""
+    """구성원 추가(Slack ID 기준) + 초대 DM 발송.
+    이름 미입력 시 Slack Full name으로 등록, Display name도 함께 저장."""
     if admin.get("role") not in ("hr", "sysadmin"):
         raise HTTPException(403, "구성원 추가는 사무장·지회장만 가능합니다.")
     body = await req.json()
     slack = (body.get("slack") or "").strip()
-    name = (body.get("name") or "").strip()
-    if not slack or not name:
-        raise HTTPException(400, "Slack ID와 이름은 필수입니다.")
+    if not slack:
+        raise HTTPException(400, "Slack ID는 필수입니다.")
+    prof = _slack_profile(slack)
+    # 이름: 입력값 우선, 없으면 Slack Full name
+    name = (body.get("name") or "").strip() or prof["full"]
+    display = (body.get("display_name") or "").strip() or prof["display"] or name
+    if not name:
+        raise HTTPException(400, "이름을 확인할 수 없습니다. Slack ID가 맞는지, 봇이 설치됐는지 확인하세요.")
     emp_id = (body.get("id") or slack).strip()
     dept = (body.get("dept") or "미지정").strip()
     position = body.get("position") or "일반"
-    repo.upsert_employee(emp_id, slack, name, dept, position)
-    invited = _invite_dm(slack, name) if body.get("invite", True) else False
-    return {"ok": True, "id": emp_id, "invited": invited}
+    repo.upsert_employee(emp_id, slack, name, dept, position, display_name=display)
+    invited = _invite_dm(slack, display or name) if body.get("invite", True) else False
+    return {"ok": True, "id": emp_id, "name": name, "display_name": display, "invited": invited}
 
 
 @api.post("/api/employees/invite")
