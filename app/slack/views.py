@@ -20,13 +20,18 @@ def _link_button(text, url, style=None):
     return b
 
 
-def me_link(emp: dict, base_url: str = "https://your-app.vercel.app") -> str:
-    """개인 근태관리 웹으로 가는 매직 링크.
-
-    자동 로그인처럼 쓰려면 만료형 서명 토큰(JWT, 짧은 TTL)을 붙여
-    웹에서 검증 후 본인 페이지를 연다. 실제로는 render 시점에 발급.
-    """
-    return f"{base_url}/me?token=<signed-jwt:{emp['id']}>"
+def dashboard_link(emp: dict) -> str | None:
+    """관리자(hr/sysadmin)에게만 대시보드 매직 링크 반환. 토큰을 담아 자동 로그인."""
+    if emp.get("role") not in ("hr", "sysadmin"):
+        return None
+    import jwt
+    from datetime import datetime, timedelta, timezone
+    from app.config import settings
+    token = jwt.encode(
+        {"slack_user_id": emp["slack_user_id"],
+         "exp": datetime.now(timezone.utc) + timedelta(hours=12)},
+        settings.JWT_SECRET, algorithm="HS256")
+    return f"{settings.WEB_BASE_URL}/?token={token}"
 
 
 def home_view(emp: dict, state: dict) -> dict:
@@ -51,12 +56,15 @@ def home_view(emp: dict, state: dict) -> dict:
             _button("외근 전환", "field"),
         ]})
     blocks.append({"type": "divider"})
-    blocks.append({"type": "actions", "elements": [
+    actions = [
         _button("연차 신청", "open_leave"),
         _button("근무 설정", "open_settings"),
         _button("내 통계", "open_mystats"),
-        _link_button("웹에서 근태관리", me_link(emp)),   # 브라우저로 개인 대시보드 열기
-    ]})
+    ]
+    dlink = dashboard_link(emp)
+    if dlink:   # 관리자에게만 대시보드 가기 버튼
+        actions.append(_link_button("대시보드 가기", dlink, style="primary"))
+    blocks.append({"type": "actions", "elements": actions})
     return {"type": "home", "blocks": blocks}
 
 

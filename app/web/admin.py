@@ -114,6 +114,26 @@ def pending_approvals(_: dict = Depends(require_admin)):
     return repo.pending_approvals()
 
 
+# ── 구성원/권한 관리 (대시보드에서 관리자 지정) ──────────
+@api.get("/api/employees")
+def api_employees(admin: dict = Depends(require_admin)):
+    return {"rows": repo.list_all_employees(), "me": admin.get("slack_user_id")}
+
+
+@api.post("/api/employees/role")
+async def api_set_role(req: Request, admin: dict = Depends(require_admin)):
+    body = await req.json()
+    target, role = body.get("employee_id"), body.get("role")
+    actor = admin.get("slack_user_id")
+    try:
+        repo.assign_role(actor, target, role)
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except (ValueError, LookupError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "employee_id": target, "role": role}
+
+
 # ── 직원 등록(간단) — key(JWT_SECRET) 보호. Slack user_id 매핑 ──
 @api.get("/admin/add-employee")
 def admin_add_employee(key: str = "", id: str = "", slack: str = "",
@@ -136,6 +156,28 @@ def admin_add_employee(key: str = "", id: str = "", slack: str = "",
                              break_start="12:00", break_end="13:00",
                              recovery={"mode": "none"}, short_rules=[]))
     return {"ok": True, "employee": {"id": id, "slack": slack, "name": name, "role": role}}
+
+
+# ── 직원 삭제(관련 기록 포함) — key 보호 ──
+@api.get("/admin/delete-employee")
+def admin_delete_employee(key: str = "", id: str = ""):
+    if key != settings.JWT_SECRET:
+        raise HTTPException(403, "잘못된 key")
+    from sqlalchemy import select
+    from app.db import session_scope
+    from app.models import (Employee, WorkConfig, AttendanceRecord,
+                            LeaveRequest, Approval)
+    with session_scope() as s:
+        for M in (AttendanceRecord, LeaveRequest, Approval):
+            for row in s.scalars(select(M).where(M.employee_id == id)).all():
+                s.delete(row)
+        wc = s.get(WorkConfig, id)
+        if wc:
+            s.delete(wc)
+        e = s.get(Employee, id)
+        if e:
+            s.delete(e)
+    return {"ok": True, "deleted": id}
 
 
 # ── Slack 이벤트 수신 (HTTP 모드) — 토큰이 설정된 경우에만 활성화 ──

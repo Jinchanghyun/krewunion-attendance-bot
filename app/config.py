@@ -20,6 +20,7 @@ class Settings:
     # 관리자 웹
     JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")            # 어느 컴퓨터에서든 접근
+    WEB_BASE_URL = os.getenv("WEB_BASE_URL", "https://krewunion-attendance-bot.vercel.app")
 
     # Google Calendar
     GCAL_ENABLED = os.getenv("GCAL_ENABLED", "false").lower() == "true"

@@ -100,6 +100,15 @@ tbody tr:last-child td{border-bottom:none;}
       <div class="card"><h2>승인센터 (연장·휴일)</h2><div id="appr-list"></div></div>
     </div>
   </div>
+
+  <div class="card">
+    <h2>구성원 · 권한 관리 <span style="color:var(--muted);font-weight:400;font-size:12px">(인사담당자·시스템관리자만 변경 가능)</span></h2>
+    <table>
+      <thead><tr><th>이름</th><th>부서</th><th>Slack ID</th><th>역할</th><th></th></tr></thead>
+      <tbody id="role-body"></tbody>
+    </table>
+    <div id="role-msg" style="font-size:12px;margin-top:10px;min-height:16px;"></div>
+  </div>
 </div>
 
 <script>
@@ -183,7 +192,44 @@ async function reload(){
   $('mode').className = demo?'badge-demo':'';
   window._live=l;
   renderOverview(o); renderLive(l); renderMonthly(mo); renderByEmp(be); renderPending(pe);
+  if(demo){ renderRoles(DEMO_EMP, null); }
+  else {
+    try{ const emp=await api('/api/employees'); renderRoles(emp.rows, emp.me); }
+    catch(e){ $('role-body').innerHTML='<tr><td colspan="5" class="empty">권한 관리는 인사담당자·시스템관리자만 볼 수 있습니다</td></tr>'; }
+  }
 }
+
+const ROLE_LABELS={employee:'직원',manager:'팀장(승인)',hr:'인사담당자',sysadmin:'시스템관리자'};
+const DEMO_EMP=[
+  {id:'K-3001',name:'김인사',dept:'경영지원',slack:'U3001',role:'sysadmin'},
+  {id:'K-9001',name:'박팀장',dept:'개발',slack:'U9001',role:'manager'},
+  {id:'K-2041',name:'홍길동',dept:'개발',slack:'U2041',role:'employee'}];
+function renderRoles(rows, me){
+  $('role-body').innerHTML = rows.map(r=>{
+    const opts=Object.entries(ROLE_LABELS).map(([v,l])=>`<option value="${v}" ${v===r.role?'selected':''}>${l}</option>`).join('');
+    return `<tr>
+      <td>${r.name}${r.slack===me?' <span style="color:var(--brand);font-size:11px">(나)</span>':''}</td>
+      <td>${r.dept}</td>
+      <td style="font-family:monospace;font-size:12px;color:var(--muted)">${r.slack}</td>
+      <td><select id="role-${r.id}" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${opts}</select></td>
+      <td><button class="chip" onclick="saveRole('${r.id}')">저장</button></td>
+    </tr>`;
+  }).join('');
+}
+window.saveRole=async(id)=>{
+  const role=$('role-'+id).value, msg=$('role-msg');
+  const base=$('api').value.trim(), tok=$('tok').value.trim();
+  if(!base||!tok){ msg.style.color='#dc2626'; msg.textContent='API 주소와 토큰을 먼저 입력하세요.'; return; }
+  try{
+    const r=await fetch(base+'/api/employees/role',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},
+      body:JSON.stringify({employee_id:id, role})});
+    const j=await r.json();
+    if(!r.ok){ msg.style.color='#dc2626'; msg.textContent='변경 실패: '+(j.detail||('HTTP '+r.status)); return; }
+    msg.style.color='var(--green)'; msg.textContent=id+' 역할을 '+ROLE_LABELS[role]+'(으)로 변경했습니다.';
+    reload();
+  }catch(e){ msg.style.color='#dc2626'; msg.textContent='오류: '+e; }
+};
 
 $('sfilters').addEventListener('click',e=>{
   const c=e.target.closest('.chip'); if(!c)return;
@@ -193,6 +239,9 @@ $('sfilters').addEventListener('click',e=>{
 /* 데모 서버(http://127.0.0.1:8000/)에서 열면 API 주소·토큰이 자동 입력됨 */
 if(window.DEMO_API) $('api').value=window.DEMO_API;
 if(window.DEMO_TOKEN) $('tok').value=window.DEMO_TOKEN;
+/* 근태봇 '대시보드 가기' 매직 링크: ?token=... 이 있으면 자동 로그인 */
+const _urlTok=new URLSearchParams(location.search).get('token');
+if(_urlTok){ $('tok').value=_urlTok; if(!$('api').value) $('api').value=location.origin; }
 reload();
 </script>
 </body>

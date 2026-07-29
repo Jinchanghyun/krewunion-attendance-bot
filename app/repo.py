@@ -23,7 +23,7 @@ _TYPE_TO_STATUS = {"office": "work", "remote": "remote", "field": "field"}
 def _emp_dict(e: Employee) -> dict:
     return {"id": e.id, "slack_user_id": e.slack_user_id, "name": e.name,
             "dept": e.dept, "manager_id": e.manager_id, "team_id": e.team_id,
-            "leave_balance": e.leave_balance}
+            "leave_balance": e.leave_balance, "role": e.role}
 
 
 def _config_dict(c: WorkConfig) -> dict:
@@ -222,6 +222,13 @@ def is_manager_of(approver_slack_id: str, employee_id: str) -> bool:
 # ── 권한(역할) ────────────────────────────────────────
 ROLES = ("employee", "manager", "hr", "sysadmin")
 _ASSIGNERS = {"hr", "sysadmin"}          # 역할을 부여할 수 있는 주체
+
+
+def list_all_employees() -> list[dict]:
+    with session_scope() as s:
+        return [{"id": e.id, "name": e.name, "dept": e.dept, "role": e.role,
+                 "slack": e.slack_user_id}
+                for e in s.scalars(select(Employee).order_by(Employee.dept, Employee.name)).all()]
 
 
 def role_of(slack_user_id: str) -> str:
