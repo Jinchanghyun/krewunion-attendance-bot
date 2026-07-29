@@ -275,7 +275,7 @@ function renderPerm(rows){const el=$('perm-body');if(!el)return;
   const deptHtml=DEPTS_ORDER.map(d=>{const m=byDept[d]||[];
     const inner=m.length?m.map(x=>nm(x)+(/부장$/.test(x.position||'')?' <b style="color:var(--brand)">(부장)</b>':'')).join('<br>'):'<span style="color:var(--muted)">구성원 없음</span>';
     return `<div style="margin:6px 0;border:1px solid var(--line);border-radius:8px;overflow:hidden">
-      <div onclick="togglePerm(this)" style="padding:8px 11px;cursor:pointer;background:var(--slate-soft);font-size:13px;font-weight:600;display:flex;justify-content:space-between">${d} (${m.length}명) <span class="arw">▽</span></div>
+      <div onclick="togglePerm(this)" style="padding:8px 11px;cursor:pointer;background:#EBEBEB;font-size:13px;font-weight:600;display:flex;justify-content:space-between">${d} (${m.length}명) <span class="arw">▽</span></div>
       <div style="display:none;padding:9px 12px;font-size:13px;line-height:1.7">${inner}</div>
     </div>`;}).join('');
   el.innerHTML=`<div class="g2">
