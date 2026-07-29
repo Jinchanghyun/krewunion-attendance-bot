@@ -1,0 +1,53 @@
+{
+  "display_information": {
+    "name": "크루유니언 근태봇",
+    "description": "Slack에서 출퇴근·재택·외근·연차를 기록합니다.",
+    "background_color": "#4f46e5"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "크루유니언 근태봇",
+      "always_online": true
+    },
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "slash_commands": [
+      {
+        "command": "/leave",
+        "url": "https://krewunion-attendance-bot.vercel.app/slack/events",
+        "description": "연차 신청 화면 열기",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "commands",
+        "users:read",
+        "im:write",
+        "im:history"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "https://krewunion-attendance-bot.vercel.app/slack/events",
+      "bot_events": [
+        "app_home_opened",
+        "message.im"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://krewunion-attendance-bot.vercel.app/slack/events"
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

@@ -114,21 +114,49 @@ def pending_approvals(_: dict = Depends(require_admin)):
     return repo.pending_approvals()
 
 
-# ── Slack HTTP 모드 (서버리스 배포용) ──────────────────
-# from slack_bolt.adapter.fastapi import SlackRequestHandler
-# from app.slack.app import app as slack_app
-# _handler = SlackRequestHandler(slack_app)
-#
-# @api.post("/slack/events")
-# async def slack_events(req: Request):
-#     return await _handler.handle(req)
+# ── 직원 등록(간단) — key(JWT_SECRET) 보호. Slack user_id 매핑 ──
+@api.get("/admin/add-employee")
+def admin_add_employee(key: str = "", id: str = "", slack: str = "",
+                       name: str = "", dept: str = "미지정", role: str = "employee"):
+    """예: /admin/add-employee?key=시크릿&id=K-1001&slack=U02XXXX&name=창현&dept=경영지원&role=sysadmin"""
+    if key != settings.JWT_SECRET:
+        raise HTTPException(403, "잘못된 key")
+    if not (id and slack and name):
+        raise HTTPException(400, "id, slack, name 은 필수입니다.")
+    from datetime import date
+    from app.db import session_scope, init_db
+    from app.models import Employee, WorkConfig
+    init_db()
+    with session_scope() as s:
+        s.merge(Employee(id=id, slack_user_id=slack, name=name, dept=dept,
+                         team_id="T1", hire_date=date.today(), role=role))
+        if not s.get(WorkConfig, id):
+            s.add(WorkConfig(employee_id=id, work_type="normal",
+                             checkin="09:00", checkout="18:00",
+                             break_start="12:00", break_end="13:00",
+                             recovery={"mode": "none"}, short_rules=[]))
+    return {"ok": True, "employee": {"id": id, "slack": slack, "name": name, "role": role}}
+
+
+# ── Slack 이벤트 수신 (HTTP 모드) — 토큰이 설정된 경우에만 활성화 ──
+if settings.SLACK_BOT_TOKEN and settings.SLACK_SIGNING_SECRET:
+    from slack_bolt.adapter.fastapi import SlackRequestHandler
+    from app.slack.app import app as slack_app
+
+    _slack_handler = SlackRequestHandler(slack_app)
+
+    @api.post("/slack/events")
+    async def slack_events(req: Request):
+        return await _slack_handler.handle(req)
 
 
 # ── Cron: 예약 출퇴근 알림 스캔 (Celery beat 대체) ─────
-@api.post("/cron/checkin-scan")
-def cron_checkin_scan(x_cron_secret: str = Header(default="")):
-    """Vercel Cron 등이 5~10분마다 호출. 상시 워커 없이 예약 알림 발송."""
-    if x_cron_secret != settings.JWT_SECRET:   # 간단한 공유 시크릿 보호
+@api.get("/cron/checkin-scan")
+def cron_checkin_scan(authorization: str = Header(default="")):
+    """Vercel Cron이 주기적으로 호출(GET). Authorization: Bearer <CRON_SECRET>로 보호.
+    CRON_SECRET 미설정 시 JWT_SECRET을 사용."""
+    expected = os.getenv("CRON_SECRET", settings.JWT_SECRET)
+    if authorization != f"Bearer {expected}":
         raise HTTPException(403, "forbidden")
     from app.scheduler.tasks import run_send_due_checkin_prompts
     return {"sent": run_send_due_checkin_prompts()}

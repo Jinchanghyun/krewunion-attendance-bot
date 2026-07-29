@@ -16,7 +16,9 @@ from app import repo
 from app.domain import leave as leave_engine
 from app.slack import views
 
-app = App(token=settings.SLACK_BOT_TOKEN, signing_secret=settings.SLACK_SIGNING_SECRET)
+# process_before_response=True: 서버리스(Vercel)에서 응답 전에 처리를 끝내야 하므로 필수
+app = App(token=settings.SLACK_BOT_TOKEN, signing_secret=settings.SLACK_SIGNING_SECRET,
+          process_before_response=True)
 
 
 # ── 접근 통제: 등록된 임직원 + (선택)화이트리스트만 ────
@@ -94,7 +96,7 @@ def on_checkout(ack, body, client):
 
 
 # ── 연차: "연차" 치면 등록 화면 (두 경로) ─────────────
-@app.command("/연차")
+@app.command("/leave")   # Slack은 한글 슬래시 명령 불가 → /leave (키워드 "연차"는 아래 메시지 핸들러)
 def open_leave_command(ack, body, client, respond):
     ack()  # 슬래시 명령은 trigger_id를 주므로 모달 즉시 오픈
     if not _resolve(body["user_id"]):
