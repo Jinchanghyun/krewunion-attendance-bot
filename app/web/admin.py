@@ -467,7 +467,8 @@ async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
     emp_id = (body.get("id") or slack).strip()
     dept = (body.get("dept") or "미지정").strip()
     position = body.get("position") or "전임 스탭"
-    repo.upsert_employee(emp_id, slack, name, dept, position, display_name=display)
+    company = (body.get("company") or "").strip()
+    repo.upsert_employee(emp_id, slack, name, dept, position, display_name=display, company=company)
     invited = _invite_dm(slack, display or name) if body.get("invite", True) else False
     return {"ok": True, "id": emp_id, "name": name, "display_name": display, "invited": invited}
 
@@ -484,7 +485,8 @@ async def api_update_member(req: Request, admin: dict = Depends(require_admin)):
     try:
         repo.update_employee_fields(eid, dept=body.get("dept"),
                                     name=body.get("name"),
-                                    display_name=body.get("display_name"))
+                                    display_name=body.get("display_name"),
+                                    company=body.get("company"))
     except LookupError as e:
         raise HTTPException(404, str(e))
     return {"ok": True}

@@ -161,12 +161,13 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
           <input id="add-slack" placeholder="Slack 이메일 또는 멤버 ID" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:180px">
           <input id="add-name" placeholder="이름" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:100px">
+          <select id="add-company" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <select id="add-dept" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
           <button class="chip" onclick="syncSlack()">⟳ Slack 이름 동기화</button>
         </div>
-        <table><thead><tr><th>이름</th><th>부서</th><th>직책 · 권한</th><th></th></tr></thead><tbody id="role-body"></tbody></table>
+        <table><thead><tr><th>이름</th><th>소속회사</th><th>부서</th><th>직책 · 권한</th><th></th></tr></thead><tbody id="role-body"></tbody></table>
         <div id="role-msg" style="font-size:12px;margin-top:10px;min-height:16px;"></div>
       </div>
     </section>
@@ -179,7 +180,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
           <span class="chip on" data-s="">전체</span><span class="chip" data-s="work">근무중</span>
           <span class="chip" data-s="remote">재택</span><span class="chip" data-s="field">외근</span><span class="chip" data-s="off">휴가</span>
         </div>
-        <table><thead><tr><th>직원</th><th>부서</th><th>근무제도</th><th>근무시간</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
+        <table><thead><tr><th>직원</th><th>소속회사</th><th>부서</th><th>근무제도</th><th>근무시간</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
         <div class="more-btn" id="live-more" onclick="toggleLive()" style="display:none"></div>
       </div>
     </section>
@@ -203,7 +204,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
         </div>
       </div>
       <div class="card"><h2>인원별 통계</h2>
-        <table><thead><tr><th>인원</th><th>부서</th><th>직책</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead><tbody id="emp-body"></tbody></table>
+        <table><thead><tr><th>인원</th><th>소속회사</th><th>부서</th><th>직책</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴가</th></tr></thead><tbody id="emp-body"></tbody></table>
       </div>
     </section>
   </main>
@@ -285,7 +286,7 @@ async function loadLeaveStats(){
       const cells=gs.map(g=>{const b=row.balances[g.group];
         if(!b)return '<td class="num" style="color:var(--muted)">—</td>';
         if(b.used_only)return `<td class="num">사용 ${b.used}일</td>`;
-        return `<td class="num"><b style="color:${b.remaining<0?'#dc2626':'#0369a1'}">${b.remaining}</b>/${b.granted} <span style="color:var(--muted);font-size:11px">(${b.used})</span></td>`;}).join('');
+        return `<td class="num"><b style="color:${b.remaining<0?'#dc2626':'#0369a1'}">${b.remaining}</b>/${b.granted}</td>`;}).join('');
       return `<tr><td>${nm}</td>${cells}</tr>`;
     }).join('');
     el.innerHTML=`<div style="overflow-x:auto"><table><thead>${head}</thead><tbody>${body||'<tr><td class="empty">구성원이 없습니다</td></tr>'}</tbody></table></div>`;
@@ -316,8 +317,8 @@ function renderLive(rows){
     const wt={normal:'일반근무',flex:'시차근무',selective:'선택적근무',elastic:'탄력근무'}[r.work_type]||'일반근무';
     const hrs=(r.checkin||'09:00')+'~'+(r.checkout||'18:00');
     const nm=r.name+(r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:11px">(${r.display_name})</span>`:'');
-    return `<tr><td>${nm}</td><td>${r.dept}</td><td>${wt}</td><td style="color:var(--muted)">${hrs}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
-  }).join('') : '<tr><td colspan="5" class="empty">해당 상태의 직원이 없습니다</td></tr>';
+    return `<tr><td>${nm}</td><td>${r.company||''}</td><td>${r.dept}</td><td>${wt}</td><td style="color:var(--muted)">${hrs}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty">해당 상태의 직원이 없습니다</td></tr>';
   const more=$('live-more');
   if(more){ if(f.length>LIVE_LIMIT){ more.style.display='block'; more.textContent=liveExpanded?'▲ 접기':`▼ 전체 ${f.length}명 보기`; } else more.style.display='none'; }
 }
@@ -335,10 +336,10 @@ function renderMonthly(m){
 function renderByEmp(rows){
   $('emp-body').innerHTML = rows.length? rows.map(r=>{
     const nm=r.name+(r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:11px">(${r.display_name})</span>`:'');
-    return `<tr><td>${nm}</td><td>${r.dept}</td><td>${r.position||''}</td>
+    return `<tr><td>${nm}</td><td>${r.company||''}</td><td>${r.dept}</td><td>${r.position||''}</td>
       <td class="num">${H(r.worked)}</td><td class="num">${H(r.overtime)}</td>
-      <td class="num">${H(r.night)}</td><td class="num">${H(r.holiday)}</td></tr>`;
-  }).join('') : '<tr><td colspan="7" class="empty">인원이 없습니다</td></tr>';
+      <td class="num">${H(r.night)}</td><td class="num">${H(r.leave)}</td></tr>`;
+  }).join('') : '<tr><td colspan="8" class="empty">인원이 없습니다</td></tr>';
 }
 function renderPending(rows){
   $('appr-list').innerHTML = rows.length? rows.map(r=>`<div class="appr">
@@ -388,7 +389,7 @@ async function reload(){
   if(demo){ renderRoles(DEMO_EMP, null); renderPerm(DEMO_EMP); }
   else {
     try{ const emp=await api('/api/employees'); renderRoles(emp.rows, emp.me); renderPerm(emp.rows); }
-    catch(e){ $('role-body').innerHTML='<tr><td colspan="4" class="empty">권한 관리는 인사담당자·시스템관리자만 볼 수 있습니다</td></tr>'; }
+    catch(e){ $('role-body').innerHTML='<tr><td colspan="5" class="empty">권한 관리는 인사담당자·시스템관리자만 볼 수 있습니다</td></tr>'; }
   }
 }
 
@@ -397,6 +398,10 @@ const DEPTS=['조직부','정책홍보부','재무운영부','대외협력부'];
 const deptOpts=cur=>{const has=DEPTS.includes(cur);
   return `<option value="" ${has?'':'selected'} disabled hidden>부서</option>`+
     DEPTS.map(d=>`<option value="${d}" ${d===cur?'selected':''}>${d}</option>`).join('');};
+const COMPANIES=['카카오','카카오게임즈','카카오페이','카카오모빌리티','카카오뱅크','카카오엔터테인먼트','KEP','카카오VX','디케이테크인','케이앤웍스','엑스엘게임즈'];
+const companyOpts=cur=>{const has=COMPANIES.includes(cur);
+  return `<option value="" ${has?'':'selected'} disabled hidden>소속회사</option>`+
+    COMPANIES.map(c=>`<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');};
 const POS_ROLE={지회장:'sysadmin',수석부지회장:'sysadmin',사무장:'hr',부지회장:'employee','전임 스탭':'employee',조직부장:'employee',정책홍보부장:'employee',재무운영부장:'employee',대외협력부장:'employee'};
 const ROLE_BADGE={sysadmin:['관리자','p-ok'],hr:['관리자(승인)','p-ok'],employee:['일반','p-cx']};
 const DEMO_EMP=[
@@ -410,6 +415,7 @@ function renderRoles(rows, me){
     const [bl,bc]=ROLE_BADGE[POS_ROLE[pos]||'employee'];
     return `<tr>
       <td>${r.name}${r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:12px">(${r.display_name})</span>`:''}${r.slack===me?' <span style="color:var(--brand);font-size:11px">(나)</span>':''}</td>
+      <td><select id="company-${r.id}" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${companyOpts(r.company)}</select></td>
       <td><select id="dept-${r.id}" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${deptOpts(r.dept)}</select></td>
       <td><select id="pos-${r.id}" onchange="posBadge('${r.id}')" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${opts}</select>
           <span class="pill ${bc}" id="posb-${r.id}" style="margin-left:6px">${bl}</span></td>
@@ -418,13 +424,14 @@ function renderRoles(rows, me){
   }).join('');
   const sel=$('add-pos'); if(sel && !sel.options.length) sel.innerHTML='<option value="" selected disabled hidden>직책</option>'+POSITIONS.map(p=>`<option>${p}</option>`).join('');
   const dsel=$('add-dept'); if(dsel && !dsel.options.length) dsel.innerHTML='<option value="" selected disabled hidden>부서</option>'+DEPTS.map(d=>`<option>${d}</option>`).join('');
+  const csel=$('add-company'); if(csel && !csel.options.length) csel.innerHTML='<option value="" selected disabled hidden>소속회사</option>'+COMPANIES.map(c=>`<option>${c}</option>`).join('');
 }
 window.addMember=async()=>{
-  const slack=$('add-slack').value.trim(), name=$('add-name').value.trim(), dept=$('add-dept').value.trim(), position=$('add-pos').value;
+  const slack=$('add-slack').value.trim(), name=$('add-name').value.trim(), dept=$('add-dept').value.trim(), position=$('add-pos').value, company=$('add-company').value;
   const base=$('api').value.trim(), tok=$('tok').value.trim(), msg=$('role-msg');
   if(!slack){msg.style.color='#dc2626';msg.textContent='Slack ID는 필수입니다. (이름은 비우면 Slack Full name으로 등록)';return;}
   try{
-    const r=await fetch(base+'/api/employees/add',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({slack,name,dept,position})});
+    const r=await fetch(base+'/api/employees/add',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({slack,name,dept,position,company})});
     const j=await r.json();
     if(!r.ok){msg.style.color='#dc2626';msg.textContent='추가 실패: '+(j.detail||('HTTP '+r.status));return;}
     msg.textContent=''; toast((j.name||name)+' 추가 완료'+(j.invited?' · 초대 발송':' (초대 DM 실패)'));
@@ -455,6 +462,7 @@ window.posBadge=id=>{const p=$('pos-'+id).value;const [bl,bc]=ROLE_BADGE[POS_ROL
 window.savePos=async(id)=>{
   const position=$('pos-'+id).value, msg=$('role-msg');
   const dept=($('dept-'+id)?$('dept-'+id).value.trim():'');
+  const company=($('company-'+id)?$('company-'+id).value:'');
   const base=$('api').value.trim(), tok=$('tok').value.trim();
   if(!base||!tok){ msg.style.color='#dc2626'; msg.textContent='API 주소와 토큰을 먼저 입력하세요.'; return; }
   const HDR={'Content-Type':'application/json',Authorization:'Bearer '+tok};
@@ -463,9 +471,9 @@ window.savePos=async(id)=>{
       body:JSON.stringify({employee_id:id, position})});
     const j=await r.json();
     if(!r.ok){ msg.style.color='#dc2626'; msg.textContent='변경 실패: '+(j.detail||('HTTP '+r.status)); return; }
-    // 부서도 함께 저장
+    // 부서·소속회사도 함께 저장
     await fetch(base+'/api/employees/update',{method:'POST',headers:HDR,
-      body:JSON.stringify({employee_id:id, dept})});
+      body:JSON.stringify({employee_id:id, dept, company})});
     msg.textContent=''; toast('저장했습니다.');
     reload();
   }catch(e){ toast('오류: '+e, true); }

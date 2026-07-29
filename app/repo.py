@@ -710,7 +710,8 @@ def assign_position(actor_slack_id: str, target_employee_id: str, position: str)
 
 
 def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
-                    position: str = _DEFAULT_POSITION, display_name: str | None = None) -> None:
+                    position: str = _DEFAULT_POSITION, display_name: str | None = None,
+                    company: str | None = None) -> None:
     """구성원 등록/수정 — 직책에 맞는 권한(role)도 함께 설정.
     name=Slack Full name, display_name=Slack Display name(표시용)."""
     from datetime import date
@@ -724,6 +725,8 @@ def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
         e.name = name
         if display_name is not None:
             e.display_name = display_name
+        if company is not None:
+            e.company = company or None
         e.dept = dept
         e.position = position
         e.role = role
@@ -737,13 +740,16 @@ def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
 def update_employee_fields(emp_id: str, dept: str | None = None,
                            name: str | None = None,
                            display_name: str | None = None,
-                           slack_user_id: str | None = None) -> None:
-    """구성원 정보(부서·이름·표시이름·Slack ID) 수정 — 전달된 값만 변경.
+                           slack_user_id: str | None = None,
+                           company: str | None = None) -> None:
+    """구성원 정보(부서·이름·표시이름·Slack ID·소속회사) 수정 — 전달된 값만 변경.
     slack_user_id 변경 시 다른 구성원과 중복되면 예외(unique)."""
     with session_scope() as s:
         e = s.get(Employee, emp_id)
         if e is None:
             raise LookupError("대상 직원을 찾을 수 없습니다.")
+        if company is not None:
+            e.company = company.strip() or None
         if dept is not None:
             e.dept = dept.strip() or e.dept
         if name is not None and name.strip():
@@ -780,6 +786,7 @@ def list_all_employees() -> list[dict]:
     with session_scope() as s:
         return [{"id": e.id, "name": e.name,
                  "display_name": getattr(e, "display_name", None) or "",
+                 "company": getattr(e, "company", None) or "",
                  "dept": e.dept, "role": e.role,
                  "position": getattr(e, "position", _DEFAULT_POSITION), "slack": e.slack_user_id}
                 for e in s.scalars(select(Employee).order_by(Employee.dept, Employee.name)).all()]
@@ -917,20 +924,30 @@ def stats_monthly(month: str) -> dict:
 
 
 def stats_by_employee(month: str) -> dict:
+    from app.domain import worktime as _wt
     start, end = _month_range(month)
+    yy, mm = int(month[:4]), int(month[5:7])
     rows = []
     with session_scope() as s:
         for e in s.scalars(select(Employee)).all():
             recs = s.scalars(select(AttendanceRecord).where(
                 AttendanceRecord.employee_id == e.id,
                 AttendanceRecord.date >= start, AttendanceRecord.date <= end)).all()
+            leaves = [{"kind": l.kind, "start": l.start.isoformat(), "end": l.end.isoformat()}
+                      for l in s.scalars(select(LeaveRequest).where(
+                          LeaveRequest.employee_id == e.id,
+                          LeaveRequest.start <= end, LeaveRequest.end >= start)).all()]
+            wc = s.get(WorkConfig, e.id)
+            cfg = _config_dict(wc) if wc else work_config(e.id)
+            leave_min = _wt.leave_used_minutes(cfg, leaves, yy, mm)
             rows.append({"employee_id": e.id, "name": e.name,
                          "display_name": getattr(e, "display_name", None) or "",
+                         "company": getattr(e, "company", None) or "",
                          "dept": e.dept, "position": getattr(e, "position", ""),
                          "worked": sum(r.work_minutes for r in recs),
                          "overtime": sum(r.overtime_minutes for r in recs),
                          "night": sum(r.night_minutes for r in recs),
-                         "holiday": sum(r.holiday_minutes for r in recs)})
+                         "leave": leave_min})
     return {"month": month, "rows": rows}
 
 
@@ -948,6 +965,7 @@ def live_status(status: str | None = None, dept: str | None = None) -> dict:
             cfg = _config_dict(wc) if wc else None
             rows.append({"employee_id": e.id, "name": e.name,
                          "display_name": getattr(e, "display_name", None) or "",
+                         "company": getattr(e, "company", None) or "",
                          "dept": e.dept, "status": st,
                          "work_type": (cfg or {}).get("work_type", "normal"),
                          "checkin": (cfg or {}).get("checkin", "09:00"),

@@ -19,6 +19,7 @@ class Employee(Base):
     team_id: Mapped[str] = mapped_column(String)                        # Slack team
     name: Mapped[str] = mapped_column(String)                          # Slack Full name
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)  # Slack Display name
+    company: Mapped[str | None] = mapped_column(String, nullable=True)  # 소속회사
     dept: Mapped[str] = mapped_column(String)
     manager_id: Mapped[str | None] = mapped_column(ForeignKey("employees.id"), nullable=True)
     hire_date: Mapped[Date] = mapped_column(Date)
