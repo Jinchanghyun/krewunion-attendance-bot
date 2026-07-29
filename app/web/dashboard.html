@@ -47,7 +47,11 @@ tbody tr:last-child td{border-bottom:none;}
 .appr .t{font-weight:600;font-size:13px;}.appr .m{font-size:12px;color:var(--muted);margin-top:2px;}
 .tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--amber-soft);color:#92400e;}
 .empty{color:var(--muted);font-size:12px;text-align:center;padding:14px 0;}
-@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(24px);background:#111827;color:#fff;padding:11px 20px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .25s,transform .25s;z-index:1000;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.err{background:#b91c1c;}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
 @media(max-width:600px){
   .wrap{padding:14px 12px 48px;}
   .top{flex-direction:column;align-items:stretch;gap:10px;}
@@ -64,6 +68,7 @@ tbody tr:last-child td{border-bottom:none;}
 </style>
 </head>
 <body>
+<div id="toast" class="toast"></div>
 <div class="wrap">
   <div class="top">
     <div class="brand">
@@ -93,36 +98,36 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="kpi"><div class="lab">승인 대기</div><div class="val" id="k-appr">—</div><div class="sub">건</div></div>
   </div>
 
-  <div class="grid">
-    <div>
-      <div class="card">
-        <h2>실시간 근무현황</h2>
-        <div class="filters" id="sfilters">
-          <span class="chip on" data-s="">전체</span>
-          <span class="chip" data-s="work">근무중</span>
-          <span class="chip" data-s="remote">재택</span>
-          <span class="chip" data-s="field">외근</span>
-          <span class="chip" data-s="off">휴가</span>
-        </div>
-        <table><thead><tr><th>직원</th><th>부서</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
-      </div>
-      <div class="card">
-        <h2>월 근무 통계 <span style="color:var(--muted);font-weight:400" id="mon-label"></span></h2>
-        <div class="chart-box"><canvas id="chart"></canvas></div>
-      </div>
-      <div class="card">
-        <h2>직원별 통계 (시간)</h2>
-        <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
-          <tbody id="emp-body"></tbody></table>
-      </div>
+  <!-- 실시간 근무현황: 전체폭 (인원 많을 때 좌우로 넓게) -->
+  <div class="card">
+    <h2>실시간 근무현황</h2>
+    <div class="filters" id="sfilters">
+      <span class="chip on" data-s="">전체</span>
+      <span class="chip" data-s="work">근무중</span>
+      <span class="chip" data-s="remote">재택</span>
+      <span class="chip" data-s="field">외근</span>
+      <span class="chip" data-s="off">휴가</span>
     </div>
-    <div>
-      <div class="card"><h2>승인센터 (연장·휴일)</h2><div id="appr-list"></div></div>
+    <table><thead><tr><th>직원</th><th>부서</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
+  </div>
+
+  <!-- 월 근무 통계 · 직원별 통계: 좌우 나란히 -->
+  <div class="g2">
+    <div class="card">
+      <h2>월 근무 통계 <span style="color:var(--muted);font-weight:400" id="mon-label"></span></h2>
+      <div class="chart-box"><canvas id="chart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>직원별 통계 (시간)</h2>
+      <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
+        <tbody id="emp-body"></tbody></table>
     </div>
   </div>
 
+  <div class="card"><h2>승인센터 (연장·휴일)</h2><div id="appr-list"></div></div>
+
   <div class="card">
-    <h2>구성원 · 권한 관리 <span style="color:var(--muted);font-weight:400;font-size:12px">(사무장·지회장만 변경 가능)</span></h2>
+    <h2>구성원 · 권한 관리</h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
       <input id="add-slack" placeholder="Slack 멤버 ID (U...)" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:150px">
       <input id="add-name" placeholder="이름(비우면 Slack)" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:120px">
@@ -227,6 +232,10 @@ window.decideAppr=async(id,decision)=>{
   }catch(e){alert('오류: '+e);}
 };
 
+/* 하단에서 짧게 떴다 사라지는 토스트 */
+function toast(m, isErr){const t=$('toast'); if(!t)return; t.textContent=m; t.classList.toggle('err',!!isErr); t.classList.add('show');
+  clearTimeout(window._toastT); window._toastT=setTimeout(()=>t.classList.remove('show'), isErr?3200:1800);}
+
 async function reload(){
   let demo=false, o,l,mo,be,pe;
   try{
@@ -281,7 +290,7 @@ window.addMember=async()=>{
     const r=await fetch(base+'/api/employees/add',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({slack,name,dept,position})});
     const j=await r.json();
     if(!r.ok){msg.style.color='#dc2626';msg.textContent='추가 실패: '+(j.detail||('HTTP '+r.status));return;}
-    msg.style.color='var(--green)';msg.textContent=(j.name||name)+' 추가 완료'+(j.invited?' · 초대 메시지를 보냈습니다.':' (초대 DM 실패 — Slack ID 확인 필요)');
+    msg.textContent=''; toast((j.name||name)+' 추가 완료'+(j.invited?' · 초대 발송':' (초대 DM 실패)'));
     $('add-slack').value='';$('add-name').value='';$('add-dept').value='';
     reload();
   }catch(e){msg.style.color='#dc2626';msg.textContent='오류: '+e;}
@@ -292,7 +301,7 @@ window.inviteMember=async(slack,name)=>{
     const r=await fetch(base+'/api/employees/invite',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({slack})});
     const j=await r.json();
     if(!r.ok){msg.style.color='#dc2626';msg.textContent='초대 실패: '+(j.detail||('HTTP '+r.status));return;}
-    msg.style.color='var(--green)';msg.textContent=name+'님에게 초대 메시지를 보냈습니다.';
+    msg.textContent=''; toast(name+'님에게 초대 메시지를 보냈습니다.');
   }catch(e){msg.style.color='#dc2626';msg.textContent='오류: '+e;}
 };
 window.delMember=async(id,name)=>{
@@ -302,7 +311,7 @@ window.delMember=async(id,name)=>{
     const r=await fetch(base+'/api/employees/delete',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({employee_id:id})});
     const j=await r.json();
     if(!r.ok){msg.style.color='#dc2626';msg.textContent='삭제 실패: '+(j.detail||('HTTP '+r.status));return;}
-    msg.style.color='var(--green)';msg.textContent=name+' 삭제 완료.';reload();
+    msg.textContent=''; toast(name+' 삭제 완료'); reload();
   }catch(e){msg.style.color='#dc2626';msg.textContent='오류: '+e;}
 };
 window.posBadge=id=>{const p=$('pos-'+id).value;const [bl,bc]=ROLE_BADGE[POS_ROLE[p]||'employee'];const el=$('posb-'+id);el.textContent=bl;el.className='pill '+bc;};
@@ -320,9 +329,9 @@ window.savePos=async(id)=>{
     // 부서도 함께 저장
     await fetch(base+'/api/employees/update',{method:'POST',headers:HDR,
       body:JSON.stringify({employee_id:id, dept})});
-    msg.style.color='var(--green)'; msg.textContent=id+' 직책='+position+' · 부서='+(dept||'미지정')+' 저장 완료';
+    msg.textContent=''; toast('저장했습니다.');
     reload();
-  }catch(e){ msg.style.color='#dc2626'; msg.textContent='오류: '+e; }
+  }catch(e){ toast('오류: '+e, true); }
 };
 window.syncSlack=async()=>{
   const base=$('api').value.trim(), tok=$('tok').value.trim(), msg=$('role-msg');
@@ -331,10 +340,10 @@ window.syncSlack=async()=>{
   try{
     const r=await fetch(base+'/api/employees/refresh-slack',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok}});
     const j=await r.json();
-    if(!r.ok){ msg.style.color='#dc2626'; msg.textContent='동기화 실패: '+(j.detail||('HTTP '+r.status)); return; }
-    msg.style.color='var(--green)'; msg.textContent=j.updated+'명의 Slack 이름을 동기화했습니다.';
+    if(!r.ok){ msg.textContent=''; toast('동기화 실패: '+(j.detail||('HTTP '+r.status)), true); return; }
+    msg.textContent=''; toast(j.updated+'명 Slack 이름 동기화 완료');
     reload();
-  }catch(e){ msg.style.color='#dc2626'; msg.textContent='오류: '+e; }
+  }catch(e){ toast('오류: '+e, true); }
 };
 
 $('sfilters').addEventListener('click',e=>{
