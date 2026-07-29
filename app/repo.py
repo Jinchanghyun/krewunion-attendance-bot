@@ -466,8 +466,10 @@ def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
 
 def update_employee_fields(emp_id: str, dept: str | None = None,
                            name: str | None = None,
-                           display_name: str | None = None) -> None:
-    """구성원 정보(부서·이름·표시이름) 수정 — 전달된 값만 변경."""
+                           display_name: str | None = None,
+                           slack_user_id: str | None = None) -> None:
+    """구성원 정보(부서·이름·표시이름·Slack ID) 수정 — 전달된 값만 변경.
+    slack_user_id 변경 시 다른 구성원과 중복되면 예외(unique)."""
     with session_scope() as s:
         e = s.get(Employee, emp_id)
         if e is None:
@@ -478,6 +480,14 @@ def update_employee_fields(emp_id: str, dept: str | None = None,
             e.name = name.strip()
         if display_name is not None:
             e.display_name = display_name.strip() or None
+        if slack_user_id is not None and slack_user_id.strip():
+            new_sid = slack_user_id.strip()
+            if new_sid != e.slack_user_id:
+                dup = s.scalar(select(Employee).where(
+                    Employee.slack_user_id == new_sid, Employee.id != emp_id))
+                if dup is not None:
+                    raise ValueError(f"이미 다른 구성원({dup.name})이 쓰는 Slack ID입니다.")
+                e.slack_user_id = new_sid
 
 
 def delete_employee(emp_id: str) -> None:

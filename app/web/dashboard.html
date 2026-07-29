@@ -130,7 +130,7 @@ tbody tr:last-child td{border-bottom:none;}
     <h2>구성원 · 권한 관리</h2>
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
       <input id="add-slack" placeholder="Slack 멤버 ID (U...)" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:150px">
-      <input id="add-name" placeholder="이름(비우면 Slack)" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:120px">
+      <input id="add-name" placeholder="이름" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:100px">
       <select id="add-dept" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
       <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
       <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
@@ -138,7 +138,7 @@ tbody tr:last-child td{border-bottom:none;}
       <span style="font-size:11px;color:var(--muted)">Slack ID는 프로필 → 더보기 → 멤버 ID 복사</span>
     </div>
     <table>
-      <thead><tr><th>이름</th><th>부서</th><th>Slack ID</th><th>직책 · 권한</th><th></th></tr></thead>
+      <thead><tr><th>이름</th><th>부서</th><th>직책 · 권한</th><th></th></tr></thead>
       <tbody id="role-body"></tbody>
     </table>
     <div id="role-msg" style="font-size:12px;margin-top:10px;min-height:16px;"></div>
@@ -244,7 +244,12 @@ async function reload(){
       api('/api/stats/monthly?month='+MONTH), api('/api/stats/by-employee?month='+MONTH),
       api('/api/approvals/pending')]);
     l=l.rows; be=be.rows; pe=pe.rows;
-  }catch(e){ demo=true; o=DEMO.overview; l=DEMO.live.rows; mo=DEMO.monthly; be=DEMO.byemp.rows; pe=DEMO.pending.rows; }
+  }catch(e){
+    if($('tok').value.trim()){  /* 토큰이 있는데 실패 = 인증/네트워크 오류 → 데모로 빠지지 않음 */
+      $('mode').textContent='연결 오류 — Slack에서 다시 열어주세요'; $('mode').className='badge-demo';
+      return;
+    }
+    demo=true; o=DEMO.overview; l=DEMO.live.rows; mo=DEMO.monthly; be=DEMO.byemp.rows; pe=DEMO.pending.rows; }
   $('mode').textContent = demo?'데모 데이터(미연결)':'API 연결됨';
   $('mode').className = demo?'badge-demo':'';
   window._live=l;
@@ -252,7 +257,7 @@ async function reload(){
   if(demo){ renderRoles(DEMO_EMP, null); }
   else {
     try{ const emp=await api('/api/employees'); renderRoles(emp.rows, emp.me); }
-    catch(e){ $('role-body').innerHTML='<tr><td colspan="5" class="empty">권한 관리는 인사담당자·시스템관리자만 볼 수 있습니다</td></tr>'; }
+    catch(e){ $('role-body').innerHTML='<tr><td colspan="4" class="empty">권한 관리는 인사담당자·시스템관리자만 볼 수 있습니다</td></tr>'; }
   }
 }
 
@@ -273,7 +278,6 @@ function renderRoles(rows, me){
     return `<tr>
       <td>${r.name}${r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:12px">(${r.display_name})</span>`:''}${r.slack===me?' <span style="color:var(--brand);font-size:11px">(나)</span>':''}</td>
       <td><select id="dept-${r.id}" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${deptOpts(r.dept)}</select></td>
-      <td style="font-family:monospace;font-size:12px;color:var(--muted)">${r.slack}</td>
       <td><select id="pos-${r.id}" onchange="posBadge('${r.id}')" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${opts}</select>
           <span class="pill ${bc}" id="posb-${r.id}" style="margin-left:6px">${bl}</span></td>
       <td><button class="chip" onclick="savePos('${r.id}')">저장</button> <button class="chip" onclick="inviteMember('${r.slack}','${r.name}')">초대</button>${r.slack!==me?` <button class="chip" style="border-color:#dc2626;color:#dc2626" onclick="delMember('${r.id}','${r.name}')">삭제</button>`:''}</td>
@@ -355,9 +359,14 @@ $('sfilters').addEventListener('click',e=>{
 if(window.DEMO_API) $('api').value=window.DEMO_API;
 if(window.DEMO_TOKEN) $('tok').value=window.DEMO_TOKEN;
 /* 근태봇 '대시보드 가기' 매직 링크: ?token=... 이 있으면 자동 로그인 */
+/* 토큰: 주소창(?token=) 또는 세션 저장소에서. 주소창에 있으면 세션에 저장 후 주소에서 감춤
+   → 새로고침해도 세션에 남아 로그인 유지(데모 데이터로 빠지지 않음). */
 const _urlTok=new URLSearchParams(location.search).get('token');
-if(_urlTok){ $('tok').value=_urlTok; if(!$('api').value) $('api').value=location.origin;
-  try{ history.replaceState(null,'',location.pathname); }catch(e){} }  /* 주소창에서 토큰 감춤 */
+let _savedTok=''; try{ _savedTok=sessionStorage.getItem('sam_token')||''; }catch(e){}
+const _tok=_urlTok||_savedTok;
+if(_tok){ $('tok').value=_tok; if(!$('api').value) $('api').value=location.origin;
+  try{ sessionStorage.setItem('sam_token',_tok); }catch(e){}
+  if(_urlTok){ try{ history.replaceState(null,'',location.pathname); }catch(e){} } }
 reload();
 </script>
 </body>

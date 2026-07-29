@@ -323,6 +323,22 @@ def _invite_dm(slack: str, name: str) -> bool:
         return False
 
 
+def _resolve_slack_id(value: str) -> str:
+    """이메일을 입력하면 Slack users.lookupByEmail로 실제 멤버 ID(U...)를 찾아 반환.
+    이미 ID면 그대로. 조회 실패 시 원본 반환(필요 권한: users:read.email)."""
+    v = (value or "").strip()
+    if "@" not in v:
+        return v
+    try:
+        from app.slack.app import app as slack_app
+        r = slack_app.client.users_lookupByEmail(email=v)
+        uid = (r.get("user") or {}).get("id")
+        return uid or v
+    except Exception as e:
+        print("email->id lookup failed:", e)
+        return v
+
+
 def _slack_profile(slack: str) -> dict:
     """Slack users.info로 Full name(real_name)·Display name(display_name) 조회."""
     try:
@@ -344,15 +360,15 @@ async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
     if admin.get("role") not in ("hr", "sysadmin"):
         raise HTTPException(403, "구성원 추가는 사무장·지회장만 가능합니다.")
     body = await req.json()
-    slack = (body.get("slack") or "").strip()
-    if not slack:
-        raise HTTPException(400, "Slack ID는 필수입니다.")
+    slack_in = (body.get("slack") or "").strip()
+    if not slack_in:
+        raise HTTPException(400, "Slack ID 또는 이메일은 필수입니다.")
+    slack = _resolve_slack_id(slack_in)   # 이메일이면 실제 멤버 ID(U...)로 변환
     prof = _slack_profile(slack)
-    # 이름: 입력값 우선, 없으면 Slack Full name
-    name = (body.get("name") or "").strip() or prof["full"]
-    display = (body.get("display_name") or "").strip() or prof["display"] or name
-    if not name:
-        raise HTTPException(400, "이름을 확인할 수 없습니다. Slack ID가 맞는지, 봇이 설치됐는지 확인하세요.")
+    # 이름: 입력값 > Slack Full name > Display name > (그래도 없으면 Slack ID)
+    # → 이름을 비워도 추가가 실패하지 않도록 항상 대체값을 채운다.
+    name = (body.get("name") or "").strip() or prof["full"] or prof["display"] or slack
+    display = (body.get("display_name") or "").strip() or prof["display"] or ""
     emp_id = (body.get("id") or slack).strip()
     dept = (body.get("dept") or "미지정").strip()
     position = body.get("position") or "일반"
@@ -385,13 +401,25 @@ async def api_refresh_slack(admin: dict = Depends(require_admin)):
     if admin.get("role") not in ("hr", "sysadmin"):
         raise HTTPException(403, "권한이 없습니다.")
     updated = 0
+    fixed_ids = 0
+    skipped = []
     for e in repo.list_all_employees():
-        prof = _slack_profile(e["slack"])
-        if prof["full"] or prof["display"]:
-            repo.update_employee_fields(e["id"], name=prof["full"] or None,
-                                        display_name=prof["display"] or None)
-            updated += 1
-    return {"ok": True, "updated": updated}
+        cur = e["slack"]
+        real = _resolve_slack_id(cur)          # 이메일로 저장돼 있으면 실제 ID로
+        prof = _slack_profile(real)
+        new_sid = real if real != cur else None
+        if prof["full"] or prof["display"] or new_sid:
+            try:
+                repo.update_employee_fields(
+                    e["id"], name=prof["full"] or None,
+                    display_name=prof["display"] or None,
+                    slack_user_id=new_sid)
+                updated += 1
+                if new_sid:
+                    fixed_ids += 1
+            except ValueError:   # 중복 Slack ID(예: 잘못 추가된 중복 구성원)
+                skipped.append(e["name"])
+    return {"ok": True, "updated": updated, "fixed_ids": fixed_ids, "skipped": skipped}
 
 
 @api.post("/api/employees/invite")
