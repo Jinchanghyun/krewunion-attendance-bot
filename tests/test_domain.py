@@ -74,15 +74,26 @@ def test_overtime_and_night():
 
 
 def test_holiday_work_counts_as_holiday_not_overtime():
+    d = date(2026, 8, 9)  # 일요일 → 휴일근로
+    s = attendance.summarize_day(
+        CONFIG, d,
+        datetime(2026, 8, 9, 10, 0),
+        datetime(2026, 8, 9, 15, 0),
+    )
+    # 10:00~15:00(5h)에서 휴게 12:00~13:00(60분) 제외 → 240분, 전부 휴일근로
+    assert s["holiday"] == 4 * 60
+    assert s["overtime"] == 0
+
+
+def test_saturday_is_not_holiday():
+    # 토요일은 '무급 휴무'이지 휴일근로가 아님
     d = date(2026, 8, 8)  # 토요일
     s = attendance.summarize_day(
         CONFIG, d,
         datetime(2026, 8, 8, 10, 0),
         datetime(2026, 8, 8, 15, 0),
     )
-    # 10:00~15:00(5h)에서 휴게 12:00~13:00(60분) 제외 → 240분, 전부 휴일근로
-    assert s["holiday"] == 4 * 60
-    assert s["overtime"] == 0
+    assert s["holiday"] == 0
 
 
 # ── 연차 소진 ──────────────────────────────────────────

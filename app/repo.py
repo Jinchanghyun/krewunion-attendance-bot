@@ -466,12 +466,11 @@ def pending_overtime_notifications(today: date) -> list[dict]:
             wtype = cfg.get("work_type")
             if wtype == "flex":
                 y = today - timedelta(days=1)
-                if y.weekday() > FRI:
-                    continue
                 rec = s.scalar(select(AttendanceRecord).where(
                     AttendanceRecord.employee_id == e.id, AttendanceRecord.date == y))
                 mins = rec.work_minutes if rec else 0
-                ot = max(0, mins - _wt.STD_DAY_MIN)
+                # 토·일 근로는 전부 초과, 평일은 8h 초과분
+                ot = mins if y.weekday() >= 5 else max(0, mins - _wt.STD_DAY_MIN)
                 if ot > 0:
                     out.append({"emp_id": e.id, "slack": e.slack_user_id, "name": e.name,
                                 "kind": "flex", "hours": round(ot / 60, 1), "ref": y.isoformat()})

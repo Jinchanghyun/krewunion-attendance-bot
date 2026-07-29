@@ -48,7 +48,8 @@ def summarize_day(
         break_min = hm_to_min(config["break_end"]) - hm_to_min(config["break_start"])
 
     worked = worked_minutes(checkin, checkout, break_min)
-    is_holiday = is_company_holiday or d.weekday() >= 5 or is_recovery_day(config, d)
+    # 휴일근로: 일요일(6)·공휴일·놀금만. 토요일(5)은 '무급 휴무'이지 휴일근로가 아님.
+    is_holiday = is_company_holiday or d.weekday() == 6 or is_recovery_day(config, d)
     holiday = worked if is_holiday else 0
     overtime = 0 if is_holiday else max(0, worked - scheduled)
     night = night_minutes(checkin, checkout)

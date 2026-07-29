@@ -95,8 +95,18 @@ def monthly_summary(config: dict, records: list[dict], leaves: list[dict],
     lv_min = leave_used_minutes(config, leaves, year, month)
 
     if work_type == "flex":                       # 시차: 하루 8h 초과분 합
-        raw_ot = sum(max(0, int(r.get("work") or 0) - STD_DAY_MIN) for r in records)
-    else:                                         # 선택적 등: 월 소정 초과분
+        raw_ot = 0
+        for r in records:
+            w = int(r.get("work") or 0)
+            ds = r.get("date")
+            weekend = False
+            if ds:
+                try:
+                    weekend = date.fromisoformat(ds).weekday() >= 5  # 토·일
+                except Exception:
+                    weekend = False
+            raw_ot += w if weekend else max(0, w - STD_DAY_MIN)  # 주말(무급휴무·휴일) 근로는 전부 초과
+    else:                                         # 선택적 등: 월 소정 초과분(=실근로 초과)
         raw_ot = max(0, actual - scheduled)
     raw_ot = min(raw_ot, MAX_OT_MIN)
     overtime = min(max(0, approved_ot_min), MAX_OT_MIN)   # 승인분만 인정
