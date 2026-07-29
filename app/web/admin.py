@@ -224,6 +224,27 @@ async def api_set_role(req: Request, admin: dict = Depends(require_admin)):
     return {"ok": True, "employee_id": target, "role": role}
 
 
+@api.get("/api/positions")
+def api_positions(_: dict = Depends(require_admin)):
+    """선택 가능한 직책 목록 + 각 직책의 권한 등급."""
+    return {"positions": list(repo.POSITIONS),
+            "role_map": repo.POSITION_ROLE}
+
+
+@api.post("/api/employees/position")
+async def api_set_position(req: Request, admin: dict = Depends(require_admin)):
+    body = await req.json()
+    target, position = body.get("employee_id"), body.get("position")
+    actor = admin.get("slack_user_id")
+    try:
+        repo.assign_position(actor, target, position)
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except (ValueError, LookupError) as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "employee_id": target, "position": position}
+
+
 # ── 직원 등록(간단) — key(JWT_SECRET) 보호. Slack user_id 매핑 ──
 @api.get("/admin/add-employee")
 def admin_add_employee(key: str = "", id: str = "", slack: str = "",

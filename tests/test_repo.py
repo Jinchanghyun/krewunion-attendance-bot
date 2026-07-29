@@ -55,10 +55,13 @@ def test_leave_deducts_balance():
 
 
 def test_approval_flow_and_authority():
+    # 승인권은 사무장에게 있다 → K-9001을 사무장으로 지정(hr가 지정)
+    repo.assign_position("U3001", "K-9001", "사무장")
     a = repo.create_approval("K-2041", "overtime", {"detail": "18:00~21:00 릴리스"})
     assert a["status"] == "requested"
-    assert repo.is_manager_of("U9001", "K-2041") is True     # 박팀장이 승인권자
-    assert repo.is_manager_of("U2041", "K-2041") is False    # 본인은 불가
+    assert repo.is_approver("U9001") is True                 # 사무장이 승인권자
+    assert repo.is_manager_of("U9001", "K-2041") is True      # (동일 판정)
+    assert repo.is_manager_of("U2041", "K-2041") is False     # 일반 직원은 불가
     done = repo.update_approval(a["id"], "approved", "U9001")
     assert done["status"] == "approved"
     assert repo.pending_approvals()["rows"] == []
@@ -79,9 +82,8 @@ def test_admin_jwt_guard():
     from app.web.admin import require_admin
     hr_token = jwt.encode({"slack_user_id": "U3001"}, settings.JWT_SECRET, algorithm="HS256")
     assert require_admin(f"Bearer {hr_token}")["role"] == "hr"
-    # 권한 없는 사용자
-    emp_token = jwt.encode({"slack_user_id": "U9001"}, settings.JWT_SECRET, algorithm="HS256")
-    # U9001은 위 테스트에서 여전히 manager → 통계 접근 불가(403)
+    # 권한 없는 사용자(U2041은 manager로 승격됨 → 통계 접근 불가 403)
+    emp_token = jwt.encode({"slack_user_id": "U2041"}, settings.JWT_SECRET, algorithm="HS256")
     from fastapi import HTTPException
     with pytest.raises(HTTPException):
         require_admin(f"Bearer {emp_token}")

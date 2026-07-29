@@ -23,7 +23,8 @@ _TYPE_TO_STATUS = {"office": "work", "remote": "remote", "field": "field"}
 def _emp_dict(e: Employee) -> dict:
     return {"id": e.id, "slack_user_id": e.slack_user_id, "name": e.name,
             "dept": e.dept, "manager_id": e.manager_id, "team_id": e.team_id,
-            "leave_balance": e.leave_balance, "role": e.role}
+            "leave_balance": e.leave_balance, "role": e.role,
+            "position": getattr(e, "position", "일반")}
 
 
 def _config_dict(c: WorkConfig) -> dict:
@@ -315,22 +316,69 @@ def update_approval(approval_id: int, status: str, approver_id: str) -> dict:
                 "decided_hm": a.decided_at.strftime("%H:%M")}
 
 
-def is_manager_of(approver_slack_id: str, employee_id: str) -> bool:
-    with session_scope() as s:
-        approver = s.scalar(select(Employee).where(Employee.slack_user_id == approver_slack_id))
-        emp = s.get(Employee, employee_id)
-        return bool(approver and emp and emp.manager_id == approver.id)
+def is_manager_of(approver_slack_id: str, employee_id: str | None = None) -> bool:
+    """연장·휴일근무 승인 권한 판정 — 승인권은 사무장(또는 지회장)에게 있다."""
+    return is_approver(approver_slack_id)
 
 
 # ── 권한(역할) ────────────────────────────────────────
 ROLES = ("employee", "manager", "hr", "sysadmin")
 _ASSIGNERS = {"hr", "sysadmin"}          # 역할을 부여할 수 있는 주체
 
+# 조합 직책(표시용) → 권한 등급 매핑
+POSITIONS = ("지회장", "수석부지회장", "사무장", "부지회장", "전임스텝",
+             "조직부장", "정책홍보부장", "재무운영부장", "대외협력부장", "일반")
+POSITION_ROLE = {
+    # 관리자(통계·설정 접근): 지회장·수석부지회장·사무장
+    "지회장": "sysadmin", "수석부지회장": "sysadmin", "사무장": "hr",
+    # 그 외 직책은 일반 권한(직원)
+    "부지회장": "employee", "전임스텝": "employee",
+    "조직부장": "employee", "정책홍보부장": "employee",
+    "재무운영부장": "employee", "대외협력부장": "employee",
+    "일반": "employee",
+}
+APPROVER_POSITIONS = ("사무장",)          # 연장·휴일근무 승인권자
+
+
+def approvers() -> list[dict]:
+    """승인권자(사무장) 목록 — 승인 요청 알림 대상."""
+    with session_scope() as s:
+        rows = s.scalars(select(Employee).where(
+            Employee.position.in_(APPROVER_POSITIONS))).all()
+        return [_emp_dict(e) for e in rows]
+
+
+def is_approver(approver_slack_id: str) -> bool:
+    with session_scope() as s:
+        a = s.scalar(select(Employee).where(Employee.slack_user_id == approver_slack_id))
+        return bool(a and (getattr(a, "position", "") in APPROVER_POSITIONS
+                           or a.role == "sysadmin"))
+
+
+def assign_position(actor_slack_id: str, target_employee_id: str, position: str) -> None:
+    """직책 지정 — 직책에 매핑된 권한(role)도 함께 설정. hr/sysadmin만 가능."""
+    if position not in POSITIONS:
+        raise ValueError(f"알 수 없는 직책: {position}")
+    new_role = POSITION_ROLE[position]
+    with session_scope() as s:
+        actor = s.scalar(select(Employee).where(Employee.slack_user_id == actor_slack_id))
+        if not actor or actor.role not in _ASSIGNERS:
+            raise PermissionError("직책을 지정할 권한이 없습니다(사무장·지회장급 전용).")
+        target = s.get(Employee, target_employee_id)
+        if target is None:
+            raise LookupError("대상 직원을 찾을 수 없습니다.")
+        if (new_role == "sysadmin" or target.role == "sysadmin") and actor.role != "sysadmin":
+            raise PermissionError("시스템관리자급 직책은 지회장(sysadmin)만 지정할 수 있습니다.")
+        if target.role == "sysadmin" and new_role != "sysadmin" and _count_sysadmins(s) <= 1:
+            raise PermissionError("마지막 시스템관리자는 강등할 수 없습니다. 인수인계를 사용하세요.")
+        target.position = position
+        target.role = new_role
+
 
 def list_all_employees() -> list[dict]:
     with session_scope() as s:
         return [{"id": e.id, "name": e.name, "dept": e.dept, "role": e.role,
-                 "slack": e.slack_user_id}
+                 "position": getattr(e, "position", "일반"), "slack": e.slack_user_id}
                 for e in s.scalars(select(Employee).order_by(Employee.dept, Employee.name)).all()]
 
 

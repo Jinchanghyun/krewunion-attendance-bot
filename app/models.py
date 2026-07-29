@@ -24,6 +24,8 @@ class Employee(Base):
     leave_balance: Mapped[float] = mapped_column(Float, default=15.0)
     # 권한: employee < manager(승인) < hr(전체 조회·통계·설정) < sysadmin(회사설정·권한·API)
     role: Mapped[str] = mapped_column(String, default="employee")
+    # 직책(표시용): 지회장·사무장·부장 등. 권한(role)은 직책에서 자동 매핑됨.
+    position: Mapped[str] = mapped_column(String, default="일반")
 
 
 class WorkConfig(Base):

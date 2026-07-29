@@ -41,6 +41,22 @@ def init_db() -> None:
     if _engine is None:
         configure()
     Base.metadata.create_all(_engine)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """기존 테이블에 나중에 추가된 컬럼을 안전하게 보강(간이 마이그레이션).
+    Postgres는 ADD COLUMN IF NOT EXISTS로 idempotent, SQLite는 예외 무시."""
+    from sqlalchemy import text
+    stmts = [
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS position VARCHAR DEFAULT '일반'",
+    ]
+    for st in stmts:
+        try:
+            with _engine.begin() as conn:
+                conn.execute(text(st))
+        except Exception:
+            pass
 
 
 @contextmanager
