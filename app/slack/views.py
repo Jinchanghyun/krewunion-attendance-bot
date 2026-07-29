@@ -20,18 +20,27 @@ def _link_button(text, url, style=None):
     return b
 
 
+def _magic_token(slack_user_id: str, hours: int = 12) -> str:
+    import jwt
+    from datetime import datetime, timedelta, timezone
+    from app.config import settings
+    return jwt.encode({"slack_user_id": slack_user_id,
+                       "exp": datetime.now(timezone.utc) + timedelta(hours=hours)},
+                      settings.JWT_SECRET, algorithm="HS256")
+
+
+def settings_link(emp: dict) -> str:
+    """개인 근무설정 웹페이지 매직 링크 (모든 직원)."""
+    from app.config import settings
+    return f"{settings.WEB_BASE_URL}/settings?token={_magic_token(emp['slack_user_id'])}"
+
+
 def dashboard_link(emp: dict) -> str | None:
     """관리자(hr/sysadmin)에게만 대시보드 매직 링크 반환. 토큰을 담아 자동 로그인."""
     if emp.get("role") not in ("hr", "sysadmin"):
         return None
-    import jwt
-    from datetime import datetime, timedelta, timezone
     from app.config import settings
-    token = jwt.encode(
-        {"slack_user_id": emp["slack_user_id"],
-         "exp": datetime.now(timezone.utc) + timedelta(hours=12)},
-        settings.JWT_SECRET, algorithm="HS256")
-    return f"{settings.WEB_BASE_URL}/?token={token}"
+    return f"{settings.WEB_BASE_URL}/?token={_magic_token(emp['slack_user_id'])}"
 
 
 def home_view(emp: dict, state: dict) -> dict:
@@ -58,7 +67,7 @@ def home_view(emp: dict, state: dict) -> dict:
     blocks.append({"type": "divider"})
     actions = [
         _button("연차 신청", "open_leave"),
-        _button("근무 설정", "open_settings"),
+        _link_button("근무 설정", settings_link(emp)),   # 웹 설정 페이지(놀금·단축 포함)
         _button("내 통계", "open_mystats"),
     ]
     dlink = dashboard_link(emp)

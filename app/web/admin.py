@@ -55,6 +55,48 @@ def healthz():
     return {"ok": True}
 
 
+_SETTINGS_PAGE = pathlib.Path(__file__).parent / "work-settings.html"
+
+
+# ── 개인 근무설정 (본인만) — 토큰의 slack_user_id로 식별 ──
+def require_employee(authorization: str = Header(default="")) -> dict:
+    token = authorization.replace("Bearer ", "")
+    if not token:
+        raise HTTPException(401, "로그인이 필요합니다.")
+    import jwt
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(401, "유효하지 않은 토큰입니다.")
+    emp = repo.try_employee_by_slack_id(payload.get("slack_user_id", ""))
+    if not emp:
+        raise HTTPException(403, "등록되지 않은 사용자입니다.")
+    return emp
+
+
+@api.get("/settings", response_class=HTMLResponse)
+def settings_page():
+    """개인 근무설정 웹페이지. ?token=<jwt> 로 본인 인증."""
+    html = _SETTINGS_PAGE.read_text(encoding="utf-8")
+    return html.replace("</head>", "<script>window.SAM_API=location.origin;</script></head>")
+
+
+@api.get("/api/my/work-config")
+def get_my_work_config(emp: dict = Depends(require_employee)):
+    return {"employee": {"id": emp["id"], "name": emp["name"], "dept": emp["dept"]},
+            "config": repo.work_config(emp["id"])}
+
+
+@api.post("/api/my/work-config")
+async def save_my_work_config(req: Request, emp: dict = Depends(require_employee)):
+    body = await req.json()
+    keys = ("work_type", "checkin", "checkout", "break_start", "break_end",
+            "recovery", "short_rules")
+    patch = {k: body[k] for k in keys if k in body}
+    repo.save_work_config(emp["id"], patch)
+    return {"ok": True}
+
+
 @api.get("/setup")
 def setup(key: str = ""):
     """일회성 초기 설정 — DB 테이블 생성 + 샘플 데이터 + 관리자 토큰 발급.
