@@ -153,6 +153,37 @@ def employees_due_for_checkin(now: datetime) -> list[dict]:
     return due
 
 
+def record_manual(employee_id: str, d: date, checkin_hm: str,
+                  checkout_hm: str | None = None, kind: str = "office") -> None:
+    """누락(수동) 출퇴근 등록 — 과거 날짜 포함."""
+    from datetime import time as _t
+    ci = datetime.combine(d, _t(*map(int, checkin_hm.split(":"))))
+    co = datetime.combine(d, _t(*map(int, checkout_hm.split(":")))) if checkout_hm else None
+    with session_scope() as s:
+        rec = s.scalar(select(AttendanceRecord).where(
+            AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == d))
+        if not rec:
+            rec = AttendanceRecord(employee_id=employee_id, date=d)
+            s.add(rec)
+        rec.type = kind
+        rec.checked_in_at = ci
+        if co:
+            rec.checked_out_at = co
+            c = s.get(WorkConfig, employee_id)
+            cfg = _config_dict(c) if c else work_config(employee_id)
+            summary = att_engine.summarize_day(cfg, d, ci, co,
+                                               leave_kind=_today_leave_kind(s, employee_id, d))
+            rec.work_minutes = summary["worked"]
+            rec.overtime_minutes = summary["overtime"]
+            rec.night_minutes = summary["night"]
+            rec.holiday_minutes = summary["holiday"]
+
+
+def team_status() -> list[dict]:
+    """팀원 오늘 현황(간단)."""
+    return live_status()["rows"]
+
+
 def employees_due_for_checkout(now: datetime) -> list[dict]:
     """퇴근 시각이 됐는데 아직 퇴근 안 찍은 직원(출근한 사람만)."""
     today, hm = now.date(), now.strftime("%H:%M")
@@ -209,6 +240,52 @@ def set_leave_calendar_event(leave_id: int, event_id: str) -> None:
 
 
 # ── 승인 (연장·휴일) ──────────────────────────────────
+def my_month(employee_id: str, month: str) -> dict:
+    """직원 본인의 월 근태(달력·목록용) + 요약 + 설정."""
+    start, end = _month_range(month)
+    with session_scope() as s:
+        recs = s.scalars(select(AttendanceRecord).where(
+            AttendanceRecord.employee_id == employee_id,
+            AttendanceRecord.date >= start, AttendanceRecord.date <= end
+        ).order_by(AttendanceRecord.date)).all()
+        records = [{"date": r.date.isoformat(), "type": r.type,
+                    "checkin": r.checked_in_at.strftime("%H:%M") if r.checked_in_at else None,
+                    "checkout": r.checked_out_at.strftime("%H:%M") if r.checked_out_at else None,
+                    "work": r.work_minutes, "overtime": r.overtime_minutes,
+                    "night": r.night_minutes, "holiday": r.holiday_minutes} for r in recs]
+        leaves = [{"kind": l.kind, "start": l.start.isoformat(), "end": l.end.isoformat()}
+                  for l in s.scalars(select(LeaveRequest).where(
+                      LeaveRequest.employee_id == employee_id,
+                      LeaveRequest.start <= end, LeaveRequest.end >= start)).all()]
+        c = s.get(WorkConfig, employee_id)
+        cfg = _config_dict(c) if c else work_config(employee_id)
+    summary = {"worked": sum(r["work"] for r in records),
+               "overtime": sum(r["overtime"] for r in records),
+               "night": sum(r["night"] for r in records),
+               "holiday": sum(r["holiday"] for r in records)}
+    return {"month": month, "records": records, "leaves": leaves,
+            "config": cfg, "summary": summary}
+
+
+def my_approvals(employee_id: str) -> list[dict]:
+    with session_scope() as s:
+        rows = s.scalars(select(Approval).where(Approval.employee_id == employee_id)
+                         .order_by(Approval.id.desc())).all()
+        return [{"id": a.id, "kind": a.kind, "status": a.status,
+                 "detail": (a.payload or {}).get("detail", ""),
+                 "payload": a.payload} for a in rows]
+
+
+def cancel_approval(employee_id: str, approval_id: int) -> bool:
+    """본인의 '대기중' 요청만 취소 가능."""
+    with session_scope() as s:
+        a = s.get(Approval, approval_id)
+        if not a or a.employee_id != employee_id or a.status != "requested":
+            return False
+        a.status = "cancelled"
+        return True
+
+
 def create_approval(employee_id: str, kind: str, payload: dict) -> dict:
     with session_scope() as s:
         a = Approval(employee_id=employee_id, kind=kind, payload=payload, status="requested")

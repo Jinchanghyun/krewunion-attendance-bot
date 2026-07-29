@@ -105,6 +105,56 @@ def open_leave_command(ack, body, client, respond):
     client.views_open(trigger_id=body["trigger_id"], view=views.leave_modal())
 
 
+_STATUS_KO = {"work": "근무중", "remote": "재택", "field": "외근", "off": "휴가", "none": "미출근"}
+
+
+@app.command("/attend")
+def attend_command(ack, body, client, respond):
+    ack()
+    emp = _resolve(body["user_id"])
+    if not emp:
+        respond(views.UNREGISTERED_MSG)
+        return
+    parts = (body.get("text") or "").strip().split()
+    sub = parts[0].lower() if parts else "help"
+    now = datetime.now()
+    if sub == "in":
+        repo.record_checkin(emp["id"], "office", now)
+        respond(":white_check_mark: 출근 완료")
+    elif sub == "out":
+        repo.record_checkout(emp["id"], now)
+        respond(":wave: 퇴근 완료. 오늘도 수고하셨어요!")
+    elif sub in ("remote", "home", "homein"):
+        repo.record_checkin(emp["id"], "remote", now)
+        respond(":house: 재택근무로 출근 완료")
+    elif sub == "field":
+        repo.record_checkin(emp["id"], "field", now)
+        respond(":round_pushpin: 외근으로 출근 완료")
+    elif sub == "status":
+        st = repo.today_state(emp["id"])
+        respond(f"오늘 상태: *{_STATUS_KO.get(st['status'], st['status'])}* · 근무 {st['worked']}")
+    elif sub == "team":
+        rows = repo.team_status()
+        lines = "\n".join(f"• {r['name']} ({r['dept']}) — {_STATUS_KO.get(r['status'], r['status'])}"
+                          for r in rows)
+        respond("*팀 현황*\n" + (lines or "표시할 팀원이 없습니다."))
+    elif sub in ("leave", "vacation"):
+        client.views_open(trigger_id=body["trigger_id"], view=views.leave_modal())
+    elif sub in ("miss", "missout"):
+        from datetime import date as _date
+        try:
+            d = _date.fromisoformat(parts[1])
+            if sub == "miss":
+                repo.record_manual(emp["id"], d, parts[2], parts[3])
+            else:
+                repo.record_manual(emp["id"], d, "09:00", parts[2])
+            respond(":white_check_mark: 누락 근태를 등록했습니다.")
+        except Exception:
+            respond("형식: `/attend miss 2026-08-01 09:00 18:00` 또는 `/attend missout 2026-08-01 18:00`")
+    else:
+        respond(views.command_help())
+
+
 @app.action("open_leave")            # 홈 탭 '연차 신청' 버튼
 def open_leave_button(ack, body, client):
     ack()

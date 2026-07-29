@@ -35,6 +35,12 @@ def settings_link(emp: dict) -> str:
     return f"{settings.WEB_BASE_URL}/settings?token={_magic_token(emp['slack_user_id'])}"
 
 
+def my_link(emp: dict) -> str:
+    """직원 대시보드(내 근태) 매직 링크."""
+    from app.config import settings
+    return f"{settings.WEB_BASE_URL}/me?token={_magic_token(emp['slack_user_id'])}"
+
+
 def dashboard_link(emp: dict) -> str | None:
     """관리자(hr/sysadmin)에게만 대시보드 매직 링크 반환. 토큰을 담아 자동 로그인."""
     if emp.get("role") not in ("hr", "sysadmin"):
@@ -68,12 +74,14 @@ def home_view(emp: dict, state: dict) -> dict:
     actions = [
         _button("연차 신청", "open_leave"),
         _link_button("근무 설정", settings_link(emp)),   # 웹 설정 페이지(놀금·단축 포함)
-        _button("내 통계", "open_mystats"),
+        _link_button("내 근태", my_link(emp)),           # 직원 대시보드
     ]
     dlink = dashboard_link(emp)
     if dlink:   # 관리자에게만 대시보드 가기 버튼
         actions.append(_link_button("대시보드 가기", dlink, style="primary"))
     blocks.append({"type": "actions", "elements": actions})
+    blocks.append({"type": "divider"})
+    blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": COMMAND_HELP}})
     return {"type": "home", "blocks": blocks}
 
 
@@ -89,6 +97,20 @@ def unregistered_home() -> dict:
 
 
 UNREGISTERED_MSG = "이 앱은 등록된 임직원만 사용할 수 있어요. 인사담당자에게 등록을 문의해 주세요."
+
+COMMAND_HELP = (
+    "*명령어* (메시지 입력창에 그대로 입력)\n"
+    "• 출근 `/attend in`   • 퇴근 `/attend out`\n"
+    "• 재택 출근 `/attend remote`   • 외근 `/attend field`\n"
+    "• 내 상태 `/attend status`   • 팀 현황 `/attend team`\n"
+    "• 연차 신청 `/attend leave`\n"
+    "• 누락 등록 `/attend miss 2026-08-01 09:00 18:00`\n"
+    "• 퇴근 누락 `/attend missout 2026-08-01 18:00`"
+)
+
+
+def command_help() -> str:
+    return COMMAND_HELP
 
 
 def checkin_prompt(emp: dict, checkin_hm: str) -> list:

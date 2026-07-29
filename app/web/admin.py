@@ -97,6 +97,54 @@ async def save_my_work_config(req: Request, emp: dict = Depends(require_employee
     return {"ok": True}
 
 
+# ── 직원 대시보드용 ────────────────────────────────────
+_MY_PAGE = pathlib.Path(__file__).parent / "my.html"
+
+
+@api.get("/me", response_class=HTMLResponse)
+def my_page():
+    html = _MY_PAGE.read_text(encoding="utf-8")
+    return html.replace("</head>", "<script>window.SAM_API=location.origin;</script></head>")
+
+
+@api.get("/api/my/summary")
+def my_summary(emp: dict = Depends(require_employee)):
+    """직원 헤더 정보(이름·부서·근무제도·역할)."""
+    cfg = repo.work_config(emp["id"])
+    return {"id": emp["id"], "name": emp["name"], "dept": emp["dept"],
+            "role": emp["role"], "work_type": cfg.get("work_type", "normal")}
+
+
+@api.get("/api/my/month")
+def my_month(month: str, emp: dict = Depends(require_employee)):
+    return repo.my_month(emp["id"], month)
+
+
+@api.get("/api/my/overtime")
+def my_overtime(emp: dict = Depends(require_employee)):
+    return {"rows": repo.my_approvals(emp["id"])}
+
+
+@api.post("/api/my/overtime")
+async def create_my_overtime(req: Request, emp: dict = Depends(require_employee)):
+    body = await req.json()
+    kind = body.get("kind", "overtime")   # overtime | holiday
+    if kind not in ("overtime", "holiday"):
+        raise HTTPException(400, "kind는 overtime 또는 holiday")
+    detail = body.get("detail", "")
+    a = repo.create_approval(emp["id"], kind, {"detail": detail, **body})
+    return {"ok": True, "id": a["id"]}
+
+
+@api.post("/api/my/overtime/cancel")
+async def cancel_my_overtime(req: Request, emp: dict = Depends(require_employee)):
+    body = await req.json()
+    ok = repo.cancel_approval(emp["id"], int(body.get("id")))
+    if not ok:
+        raise HTTPException(400, "취소할 수 없는 요청입니다(대기중 상태만 취소 가능).")
+    return {"ok": True}
+
+
 @api.get("/setup")
 def setup(key: str = ""):
     """일회성 초기 설정 — DB 테이블 생성 + 샘플 데이터 + 관리자 토큰 발급.
