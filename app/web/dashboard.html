@@ -126,7 +126,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
       <input id="add-slack" placeholder="Slack 멤버 ID (U...)" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:150px">
       <input id="add-name" placeholder="이름(비우면 Slack)" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:120px">
-      <input id="add-dept" placeholder="부서" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:90px">
+      <select id="add-dept" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
       <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
       <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
       <button class="chip" onclick="syncSlack()">⟳ Slack 이름 동기화</button>
@@ -248,6 +248,8 @@ async function reload(){
 }
 
 const POSITIONS=['지회장','수석부지회장','사무장','부지회장','전임스텝','조직부장','정책홍보부장','재무운영부장','대외협력부장','일반'];
+const DEPTS=['조직부','정책홍보부','재무운영부','대외협력부'];
+const deptOpts=cur=>DEPTS.map(d=>`<option value="${d}" ${d===cur?'selected':''}>${d}</option>`).join('');
 const POS_ROLE={지회장:'sysadmin',수석부지회장:'sysadmin',사무장:'hr',부지회장:'employee',전임스텝:'employee',조직부장:'employee',정책홍보부장:'employee',재무운영부장:'employee',대외협력부장:'employee',일반:'employee'};
 const ROLE_BADGE={sysadmin:['관리자','p-ok'],hr:['관리자(승인)','p-ok'],employee:['일반','p-cx']};
 const DEMO_EMP=[
@@ -261,7 +263,7 @@ function renderRoles(rows, me){
     const [bl,bc]=ROLE_BADGE[POS_ROLE[pos]||'employee'];
     return `<tr>
       <td>${r.name}${r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:12px">(${r.display_name})</span>`:''}${r.slack===me?' <span style="color:var(--brand);font-size:11px">(나)</span>':''}</td>
-      <td><input id="dept-${r.id}" value="${r.dept||''}" style="width:88px;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px"></td>
+      <td><select id="dept-${r.id}" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${deptOpts(r.dept)}</select></td>
       <td style="font-family:monospace;font-size:12px;color:var(--muted)">${r.slack}</td>
       <td><select id="pos-${r.id}" onchange="posBadge('${r.id}')" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${opts}</select>
           <span class="pill ${bc}" id="posb-${r.id}" style="margin-left:6px">${bl}</span></td>
@@ -269,6 +271,7 @@ function renderRoles(rows, me){
     </tr>`;
   }).join('');
   const sel=$('add-pos'); if(sel && !sel.options.length) sel.innerHTML=POSITIONS.map(p=>`<option>${p}</option>`).join('');
+  const dsel=$('add-dept'); if(dsel && !dsel.options.length) dsel.innerHTML=DEPTS.map(d=>`<option>${d}</option>`).join('');
 }
 window.addMember=async()=>{
   const slack=$('add-slack').value.trim(), name=$('add-name').value.trim(), dept=$('add-dept').value.trim(), position=$('add-pos').value;
