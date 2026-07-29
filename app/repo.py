@@ -440,7 +440,8 @@ def delete_employee(emp_id: str) -> None:
     with session_scope() as s:
         # 이 사람을 팀장(manager_id)으로 참조하는 직원 해제 → FK 제약 회피
         s.execute(_update(Employee).where(Employee.manager_id == emp_id).values(manager_id=None))
-        for M in (AttendanceRecord, LeaveRequest, Approval):
+        # employee_id를 참조하는 모든 자식 레코드 정리 → FK 위반(500) 방지
+        for M in (AttendanceRecord, LeaveRequest, Approval, SlackReminder):
             s.execute(_delete(M).where(M.employee_id == emp_id))
         wc = s.get(WorkConfig, emp_id)
         if wc:
