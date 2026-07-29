@@ -103,7 +103,15 @@ tbody tr:last-child td{border-bottom:none;}
   </div>
 
   <div class="card">
-    <h2>구성원 · 권한 관리 <span style="color:var(--muted);font-weight:400;font-size:12px">(인사담당자·시스템관리자만 변경 가능)</span></h2>
+    <h2>구성원 · 권한 관리 <span style="color:var(--muted);font-weight:400;font-size:12px">(사무장·지회장만 변경 가능)</span></h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px;background:var(--slate-soft);border-radius:10px">
+      <input id="add-slack" placeholder="Slack 멤버 ID (U...)" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:150px">
+      <input id="add-name" placeholder="이름" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:90px">
+      <input id="add-dept" placeholder="부서" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:90px">
+      <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
+      <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
+      <span style="font-size:11px;color:var(--muted)">Slack ID는 프로필 → 더보기 → 멤버 ID 복사</span>
+    </div>
     <table>
       <thead><tr><th>이름</th><th>부서</th><th>Slack ID</th><th>직책 · 권한</th><th></th></tr></thead>
       <tbody id="role-body"></tbody>
@@ -237,10 +245,34 @@ function renderRoles(rows, me){
       <td style="font-family:monospace;font-size:12px;color:var(--muted)">${r.slack}</td>
       <td><select id="pos-${r.id}" onchange="posBadge('${r.id}')" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${opts}</select>
           <span class="pill ${bc}" id="posb-${r.id}" style="margin-left:6px">${bl}</span></td>
-      <td><button class="chip" onclick="savePos('${r.id}')">저장</button></td>
+      <td><button class="chip" onclick="savePos('${r.id}')">저장</button>${r.slack!==me?` <button class="chip" style="border-color:#dc2626;color:#dc2626" onclick="delMember('${r.id}','${r.name}')">삭제</button>`:''}</td>
     </tr>`;
   }).join('');
+  const sel=$('add-pos'); if(sel && !sel.options.length) sel.innerHTML=POSITIONS.map(p=>`<option>${p}</option>`).join('');
 }
+window.addMember=async()=>{
+  const slack=$('add-slack').value.trim(), name=$('add-name').value.trim(), dept=$('add-dept').value.trim(), position=$('add-pos').value;
+  const base=$('api').value.trim(), tok=$('tok').value.trim(), msg=$('role-msg');
+  if(!slack||!name){msg.style.color='#dc2626';msg.textContent='Slack ID와 이름은 필수입니다.';return;}
+  try{
+    const r=await fetch(base+'/api/employees/add',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({slack,name,dept,position})});
+    const j=await r.json();
+    if(!r.ok){msg.style.color='#dc2626';msg.textContent='추가 실패: '+(j.detail||('HTTP '+r.status));return;}
+    msg.style.color='var(--green)';msg.textContent=name+' 구성원을 추가했습니다.';
+    $('add-slack').value='';$('add-name').value='';$('add-dept').value='';
+    reload();
+  }catch(e){msg.style.color='#dc2626';msg.textContent='오류: '+e;}
+};
+window.delMember=async(id,name)=>{
+  if(!confirm(name+' 구성원을 삭제할까요? (근태 기록도 함께 삭제)'))return;
+  const base=$('api').value.trim(), tok=$('tok').value.trim(), msg=$('role-msg');
+  try{
+    const r=await fetch(base+'/api/employees/delete',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({employee_id:id})});
+    const j=await r.json();
+    if(!r.ok){msg.style.color='#dc2626';msg.textContent='삭제 실패: '+(j.detail||('HTTP '+r.status));return;}
+    msg.style.color='var(--green)';msg.textContent=name+' 삭제 완료.';reload();
+  }catch(e){msg.style.color='#dc2626';msg.textContent='오류: '+e;}
+};
 window.posBadge=id=>{const p=$('pos-'+id).value;const [bl,bc]=ROLE_BADGE[POS_ROLE[p]||'employee'];const el=$('posb-'+id);el.textContent=bl;el.className='pill '+bc;};
 window.savePos=async(id)=>{
   const position=$('pos-'+id).value, msg=$('role-msg');

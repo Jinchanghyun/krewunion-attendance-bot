@@ -10,7 +10,7 @@ import pathlib
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import settings
 from app import repo
@@ -53,6 +53,22 @@ def dashboard():
 @api.get("/healthz")
 def healthz():
     return {"ok": True}
+
+
+@api.get("/go/{code}")
+def go(code: str):
+    """홈 버튼용 짧은 코드 → 검증 후 실제 페이지로 리다이렉트(토큰 부여)."""
+    import jwt
+    from datetime import datetime, timedelta, timezone
+    from app.links import parse_code
+    d = parse_code(code)
+    if not d:
+        raise HTTPException(403, "링크가 만료되었거나 올바르지 않습니다. Slack에서 다시 열어주세요.")
+    token = jwt.encode({"slack_user_id": d["slack_user_id"],
+                        "exp": datetime.now(timezone.utc) + timedelta(hours=12)},
+                       settings.JWT_SECRET, algorithm="HS256")
+    dest = {"me": "/me", "settings": "/settings", "dashboard": "/"}.get(d["target"], "/me")
+    return RedirectResponse(url=f"{dest}?token={token}", status_code=302)
 
 
 _SETTINGS_PAGE = pathlib.Path(__file__).parent / "work-settings.html"
@@ -237,6 +253,32 @@ async def api_set_role(req: Request, admin: dict = Depends(require_admin)):
     except (ValueError, LookupError) as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "employee_id": target, "role": role}
+
+
+@api.post("/api/employees/add")
+async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
+    """구성원 추가(Slack ID 기준). 사번 미입력 시 Slack ID를 사번으로 사용."""
+    if admin.get("role") not in ("hr", "sysadmin"):
+        raise HTTPException(403, "구성원 추가는 사무장·지회장만 가능합니다.")
+    body = await req.json()
+    slack = (body.get("slack") or "").strip()
+    name = (body.get("name") or "").strip()
+    if not slack or not name:
+        raise HTTPException(400, "Slack ID와 이름은 필수입니다.")
+    emp_id = (body.get("id") or slack).strip()
+    dept = (body.get("dept") or "미지정").strip()
+    position = body.get("position") or "일반"
+    repo.upsert_employee(emp_id, slack, name, dept, position)
+    return {"ok": True, "id": emp_id}
+
+
+@api.post("/api/employees/delete")
+async def api_delete_member(req: Request, admin: dict = Depends(require_admin)):
+    if admin.get("role") not in ("hr", "sysadmin"):
+        raise HTTPException(403, "삭제 권한이 없습니다.")
+    body = await req.json()
+    repo.delete_employee(body.get("employee_id"))
+    return {"ok": True}
 
 
 @api.get("/api/positions")

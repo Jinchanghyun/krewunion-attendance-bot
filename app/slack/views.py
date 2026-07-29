@@ -33,24 +33,28 @@ def _magic_token(slack_user_id: str, hours: int = 12) -> str:
                       settings.JWT_SECRET, algorithm="HS256")
 
 
-def settings_link(emp: dict) -> str:
-    """개인 근무설정 웹페이지 매직 링크 (모든 직원)."""
+def _go(emp: dict, target: str) -> str:
+    """짧은 코드형 매직 링크(/go/{code}) — hover 시 긴 토큰이 노출되지 않게."""
     from app.config import settings
-    return f"{settings.WEB_BASE_URL}/settings?token={_magic_token(emp['slack_user_id'])}"
+    from app.links import make_code
+    return f"{settings.WEB_BASE_URL}/go/{make_code(emp['slack_user_id'], target)}"
+
+
+def settings_link(emp: dict) -> str:
+    """개인 근무설정 웹페이지 (모든 직원)."""
+    return _go(emp, "settings")
 
 
 def my_link(emp: dict) -> str:
-    """직원 대시보드(내 근태) 매직 링크."""
-    from app.config import settings
-    return f"{settings.WEB_BASE_URL}/me?token={_magic_token(emp['slack_user_id'])}"
+    """직원 대시보드(내 근태)."""
+    return _go(emp, "me")
 
 
 def dashboard_link(emp: dict) -> str | None:
     """관리자(hr/sysadmin)에게만 대시보드 매직 링크 반환. 토큰을 담아 자동 로그인."""
     if emp.get("role") not in ("hr", "sysadmin"):
         return None
-    from app.config import settings
-    return f"{settings.WEB_BASE_URL}/?token={_magic_token(emp['slack_user_id'])}"
+    return _go(emp, "dashboard")
 
 
 def home_view(emp: dict, state: dict) -> dict:

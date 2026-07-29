@@ -375,6 +375,41 @@ def assign_position(actor_slack_id: str, target_employee_id: str, position: str)
         target.role = new_role
 
 
+def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
+                    position: str = "일반") -> None:
+    """구성원 등록/수정 — 직책에 맞는 권한(role)도 함께 설정."""
+    from datetime import date
+    role = POSITION_ROLE.get(position, "employee")
+    with session_scope() as s:
+        e = s.get(Employee, emp_id)
+        if not e:
+            e = Employee(id=emp_id, hire_date=date.today(), team_id="T1")
+            s.add(e)
+        e.slack_user_id = slack
+        e.name = name
+        e.dept = dept
+        e.position = position
+        e.role = role
+        if not s.get(WorkConfig, emp_id):
+            s.add(WorkConfig(employee_id=emp_id, work_type="normal",
+                             checkin="09:00", checkout="18:00",
+                             break_start="12:00", break_end="13:00",
+                             recovery={"mode": "none"}, short_rules=[]))
+
+
+def delete_employee(emp_id: str) -> None:
+    from sqlalchemy import delete as _delete
+    with session_scope() as s:
+        for M in (AttendanceRecord, LeaveRequest, Approval):
+            s.execute(_delete(M).where(M.employee_id == emp_id))
+        wc = s.get(WorkConfig, emp_id)
+        if wc:
+            s.delete(wc)
+        e = s.get(Employee, emp_id)
+        if e:
+            s.delete(e)
+
+
 def list_all_employees() -> list[dict]:
     with session_scope() as s:
         return [{"id": e.id, "name": e.name, "dept": e.dept, "role": e.role,
