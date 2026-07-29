@@ -51,8 +51,10 @@ def my_link(emp: dict) -> str:
 
 
 def dashboard_link(emp: dict) -> str | None:
-    """관리자(hr/sysadmin)에게만 대시보드 매직 링크 반환. 토큰을 담아 자동 로그인."""
-    if emp.get("role") not in ("hr", "sysadmin"):
+    """관리자(hr/sysadmin) + 슈퍼유저(창현)에게 대시보드 매직 링크 반환."""
+    from app.repo import SUPERUSER_SLACK_IDS
+    is_super = emp.get("slack_user_id") in SUPERUSER_SLACK_IDS
+    if not is_super and emp.get("role") not in ("hr", "sysadmin"):
         return None
     return _go(emp, "dashboard")
 

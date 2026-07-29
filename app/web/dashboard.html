@@ -129,6 +129,7 @@ tbody tr:last-child td{border-bottom:none;}
       <input id="add-dept" placeholder="부서" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;width:90px">
       <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
       <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
+      <button class="chip" onclick="syncSlack()">⟳ Slack 이름 동기화</button>
       <span style="font-size:11px;color:var(--muted)">Slack ID는 프로필 → 더보기 → 멤버 ID 복사</span>
     </div>
     <table>
@@ -259,8 +260,8 @@ function renderRoles(rows, me){
     const opts=POSITIONS.map(p=>`<option value="${p}" ${p===pos?'selected':''}>${p}</option>`).join('');
     const [bl,bc]=ROLE_BADGE[POS_ROLE[pos]||'employee'];
     return `<tr>
-      <td>${r.name}${r.slack===me?' <span style="color:var(--brand);font-size:11px">(나)</span>':''}${r.display_name&&r.display_name!==r.name?`<br><span style="color:var(--muted);font-size:11px">@${r.display_name}</span>`:''}</td>
-      <td>${r.dept}</td>
+      <td>${r.name}${r.display_name&&r.display_name!==r.name?` <span style="color:var(--muted);font-size:12px">(${r.display_name})</span>`:''}${r.slack===me?' <span style="color:var(--brand);font-size:11px">(나)</span>':''}</td>
+      <td><input id="dept-${r.id}" value="${r.dept||''}" style="width:88px;padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px"></td>
       <td style="font-family:monospace;font-size:12px;color:var(--muted)">${r.slack}</td>
       <td><select id="pos-${r.id}" onchange="posBadge('${r.id}')" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${opts}</select>
           <span class="pill ${bc}" id="posb-${r.id}" style="margin-left:6px">${bl}</span></td>
@@ -304,15 +305,31 @@ window.delMember=async(id,name)=>{
 window.posBadge=id=>{const p=$('pos-'+id).value;const [bl,bc]=ROLE_BADGE[POS_ROLE[p]||'employee'];const el=$('posb-'+id);el.textContent=bl;el.className='pill '+bc;};
 window.savePos=async(id)=>{
   const position=$('pos-'+id).value, msg=$('role-msg');
+  const dept=($('dept-'+id)?$('dept-'+id).value.trim():'');
   const base=$('api').value.trim(), tok=$('tok').value.trim();
   if(!base||!tok){ msg.style.color='#dc2626'; msg.textContent='API 주소와 토큰을 먼저 입력하세요.'; return; }
+  const HDR={'Content-Type':'application/json',Authorization:'Bearer '+tok};
   try{
-    const r=await fetch(base+'/api/employees/position',{method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},
+    const r=await fetch(base+'/api/employees/position',{method:'POST',headers:HDR,
       body:JSON.stringify({employee_id:id, position})});
     const j=await r.json();
     if(!r.ok){ msg.style.color='#dc2626'; msg.textContent='변경 실패: '+(j.detail||('HTTP '+r.status)); return; }
-    msg.style.color='var(--green)'; msg.textContent=id+' 직책을 '+position+'(으)로 변경했습니다.';
+    // 부서도 함께 저장
+    await fetch(base+'/api/employees/update',{method:'POST',headers:HDR,
+      body:JSON.stringify({employee_id:id, dept})});
+    msg.style.color='var(--green)'; msg.textContent=id+' 직책='+position+' · 부서='+(dept||'미지정')+' 저장 완료';
+    reload();
+  }catch(e){ msg.style.color='#dc2626'; msg.textContent='오류: '+e; }
+};
+window.syncSlack=async()=>{
+  const base=$('api').value.trim(), tok=$('tok').value.trim(), msg=$('role-msg');
+  if(!base||!tok){ msg.style.color='#dc2626'; msg.textContent='API 주소와 토큰을 먼저 입력하세요.'; return; }
+  msg.style.color='var(--muted)'; msg.textContent='Slack 이름 동기화 중…';
+  try{
+    const r=await fetch(base+'/api/employees/refresh-slack',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok}});
+    const j=await r.json();
+    if(!r.ok){ msg.style.color='#dc2626'; msg.textContent='동기화 실패: '+(j.detail||('HTTP '+r.status)); return; }
+    msg.style.color='var(--green)'; msg.textContent=j.updated+'명의 Slack 이름을 동기화했습니다.';
     reload();
   }catch(e){ msg.style.color='#dc2626'; msg.textContent='오류: '+e; }
 };

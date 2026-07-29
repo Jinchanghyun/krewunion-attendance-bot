@@ -54,3 +54,15 @@ def update_event(event_id: str, start: date, end: date) -> None:
 def delete_event(event_id: str) -> None:
     _client().events().delete(calendarId=settings.GCAL_TEAM_CALENDAR_ID,
                               eventId=event_id).execute()
+
+
+def sync_leave(leave_id: int) -> str | None:
+    """연차 신청을 팀 캘린더에 종일 이벤트로 등록. 미설정이면 조용히 통과."""
+    if not enabled():
+        return None
+    from app import repo
+    lr = repo.get_leave(leave_id)
+    summary = f"{lr['emp_name']} · {lr['kind_label']}"
+    ev = create_all_day_event(summary, lr["start"], lr["end"])
+    repo.set_leave_calendar_event(leave_id, ev)
+    return ev

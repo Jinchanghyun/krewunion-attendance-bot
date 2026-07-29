@@ -51,6 +51,7 @@ def _ensure_columns() -> None:
     stmts = [
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS position VARCHAR DEFAULT '일반'",
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS display_name VARCHAR",
+        "ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS reason VARCHAR",
     ]
     for st in stmts:
         try:

@@ -161,6 +161,53 @@ async def cancel_my_overtime(req: Request, emp: dict = Depends(require_employee)
     return {"ok": True}
 
 
+# ── 연차(무승인 즉시 반영) : 웹에서 신청/취소 ──────────
+@api.get("/api/my/leave")
+def my_leave_list(emp: dict = Depends(require_employee)):
+    return {"rows": repo.my_leaves(emp["id"]), "balance": emp.get("leave_balance")}
+
+
+@api.post("/api/my/leave")
+async def create_my_leave(req: Request, emp: dict = Depends(require_employee)):
+    """연차/오전반차/오후반차 신청 — 승인 없이 즉시 확정. 사유는 선택."""
+    from datetime import date as _date
+    from app.domain import leave as leave_engine
+    body = await req.json()
+    kind = body.get("kind", "annual")
+    if kind not in ("annual", "half_am", "half_pm"):
+        raise HTTPException(400, "kind는 annual · half_am · half_pm 중 하나입니다.")
+    try:
+        start = _date.fromisoformat(body.get("start"))
+    except Exception:
+        raise HTTPException(400, "시작일이 올바르지 않습니다.")
+    end_raw = body.get("end")
+    end = _date.fromisoformat(end_raw) if end_raw else start
+    if kind in ("half_am", "half_pm"):
+        end = start   # 반차는 하루
+    if end < start:
+        raise HTTPException(400, "종료일이 시작일보다 빠를 수 없습니다.")
+    reason = (body.get("reason") or "").strip()   # 선택
+    cfg = repo.work_config(emp["id"])
+    days = leave_engine.deduct_days(cfg, kind, start, end)
+    r = repo.create_leave(emp["id"], kind, start, end, days, reason=reason)
+    # 구글 캘린더 동기화(설정된 경우에만) — 실패해도 신청은 유지
+    try:
+        from app.integrations import gcal
+        gcal.sync_leave(r["id"])
+    except Exception as e:
+        print("gcal sync skipped:", e)
+    return {"ok": True, "id": r["id"], "days": days, "balance_after": r.get("balance_after")}
+
+
+@api.post("/api/my/leave/cancel")
+async def cancel_my_leave(req: Request, emp: dict = Depends(require_employee)):
+    body = await req.json()
+    ok = repo.cancel_leave(emp["id"], int(body.get("id")))
+    if not ok:
+        raise HTTPException(400, "취소할 수 없는 연차입니다.")
+    return {"ok": True}
+
+
 @api.get("/setup")
 def setup(key: str = ""):
     """일회성 초기 설정 — DB 테이블 생성 + 샘플 데이터 + 관리자 토큰 발급.
@@ -312,6 +359,39 @@ async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
     repo.upsert_employee(emp_id, slack, name, dept, position, display_name=display)
     invited = _invite_dm(slack, display or name) if body.get("invite", True) else False
     return {"ok": True, "id": emp_id, "name": name, "display_name": display, "invited": invited}
+
+
+@api.post("/api/employees/update")
+async def api_update_member(req: Request, admin: dict = Depends(require_admin)):
+    """구성원 부서·이름·표시이름 수정(추가 이후에도 변경 가능)."""
+    if admin.get("role") not in ("hr", "sysadmin"):
+        raise HTTPException(403, "권한이 없습니다.")
+    body = await req.json()
+    eid = (body.get("employee_id") or "").strip()
+    if not eid:
+        raise HTTPException(400, "employee_id는 필수입니다.")
+    try:
+        repo.update_employee_fields(eid, dept=body.get("dept"),
+                                    name=body.get("name"),
+                                    display_name=body.get("display_name"))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+    return {"ok": True}
+
+
+@api.post("/api/employees/refresh-slack")
+async def api_refresh_slack(admin: dict = Depends(require_admin)):
+    """모든 구성원의 Slack Full name·Display name을 다시 가져와 채운다(백필)."""
+    if admin.get("role") not in ("hr", "sysadmin"):
+        raise HTTPException(403, "권한이 없습니다.")
+    updated = 0
+    for e in repo.list_all_employees():
+        prof = _slack_profile(e["slack"])
+        if prof["full"] or prof["display"]:
+            repo.update_employee_fields(e["id"], name=prof["full"] or None,
+                                        display_name=prof["display"] or None)
+            updated += 1
+    return {"ok": True, "updated": updated}
 
 
 @api.post("/api/employees/invite")

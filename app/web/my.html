@@ -85,6 +85,7 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
     <span class="tab on" data-t="cal">근태 캘린더</span>
     <span class="tab" data-t="rec">출퇴근 기록</span>
     <span class="tab" data-t="sch">근무일정</span>
+    <span class="tab" data-t="lv">연차</span>
     <span class="tab" data-t="ot">시간외근무</span>
   </div>
 
@@ -127,6 +128,25 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
     <div class="card">
       <h2>근무일정 · 근무제도 <a class="linkbtn" id="editcfg" href="#">근무 설정 편집 →</a></h2>
       <div id="sch-body"></div>
+    </div>
+  </div>
+
+  <!-- 연차 -->
+  <div id="tab-lv" class="hidden">
+    <div class="card">
+      <h2>연차 신청 <span style="font-weight:400;color:var(--muted);font-size:12px">· 승인 없이 즉시 반영</span></h2>
+      <div class="row3">
+        <div class="field"><label class="fl">종류</label><select id="lv-kind"><option value="annual">연차 (종일)</option><option value="half_am">오전 반차</option><option value="half_pm">오후 반차</option></select></div>
+        <div class="field"><label class="fl">시작일</label><input type="date" id="lv-start"></div>
+        <div class="field"><label class="fl" id="lv-endlabel">종료일</label><input type="date" id="lv-end"></div>
+      </div>
+      <div class="field"><label class="fl">사유 <span style="color:var(--muted);font-weight:400">(선택)</span></label><input type="text" id="lv-reason" placeholder=""></div>
+      <button class="btn btn-p" id="lv-submit" style="margin-top:10px">연차 신청</button>
+      <div id="lv-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
+    </div>
+    <div class="card">
+      <h2>내 연차 내역</h2>
+      <table><thead><tr><th>종류</th><th>기간</th><th class="num">일수</th><th>사유</th><th></th></tr></thead><tbody id="lv-body"></tbody></table>
     </div>
   </div>
 
@@ -258,11 +278,33 @@ $('ot-submit').addEventListener('click',async()=>{const msg=$('ot-msg');
     msg.style.color='var(--green)';msg.textContent='승인 요청을 보냈습니다. 팀장 승인 후 반영됩니다.';loadOvertime();
   }catch(e){msg.style.color='#dc2626';msg.textContent='신청 실패: '+e;}});
 
+/* 연차 */
+const LVK={annual:'연차',half_am:'오전반차',half_pm:'오후반차'};
+async function loadLeave(){try{const d=await api('/api/my/leave');const P={applied:['확정','p-ok'],cancelled:['취소','p-cx']};
+  $('lv-body').innerHTML=d.rows.length?d.rows.map(r=>{const [lb,c]=P[r.status]||['확정','p-ok'];
+    const per=r.start===r.end?r.start:(r.start+' ~ '+r.end);
+    const cancel=r.status==='applied'?`<button class="btn btn-g" style="padding:4px 10px" onclick="cancelLeave(${r.id})">취소</button>`:'';
+    return `<tr><td>${LVK[r.kind]||r.kind}</td><td>${per}</td><td class="num">${r.days}</td><td>${r.reason||'—'}</td><td>${cancel}</td></tr>`;}).join(''):'<tr><td colspan="5" class="empty">신청 내역이 없습니다</td></tr>';
+}catch(e){$('lv-body').innerHTML='<tr><td colspan="5" class="empty">불러오기 실패</td></tr>';}}
+window.cancelLeave=async(id)=>{if(!confirm('이 연차를 취소할까요? 차감된 연차가 복원됩니다.'))return;
+  try{await api('/api/my/leave/cancel',{method:'POST',body:JSON.stringify({id})});loadLeave();loadMonth();}catch(e){alert('취소 실패: '+e);}};
+$('lv-kind').addEventListener('change',()=>{const half=$('lv-kind').value!=='annual';$('lv-end').disabled=half;$('lv-endlabel').style.opacity=half?.4:1;if(half)$('lv-end').value=$('lv-start').value;});
+$('lv-start').addEventListener('change',()=>{if($('lv-kind').value!=='annual')$('lv-end').value=$('lv-start').value;});
+$('lv-submit').addEventListener('click',async()=>{const msg=$('lv-msg');
+  const kind=$('lv-kind').value,start=$('lv-start').value,reason=$('lv-reason').value.trim();
+  let end=$('lv-end').value; if(kind!=='annual')end=start;
+  if(!start){msg.style.color='#dc2626';msg.textContent='시작일을 선택하세요.';return;}
+  try{const r=await api('/api/my/leave',{method:'POST',body:JSON.stringify({kind,start,end,reason})});
+    msg.style.color='var(--green)';msg.textContent=`${LVK[kind]} ${r.days}일 신청 완료 (즉시 반영)`;
+    $('lv-reason').value='';loadLeave();loadMonth();
+  }catch(e){msg.style.color='#dc2626';msg.textContent='신청 실패: '+e;}});
+
 /* 탭 전환 */
 document.querySelector('.tabs').addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
-  ['cal','rec','sch','ot'].forEach(id=>$('tab-'+id).classList.toggle('hidden',id!==t.dataset.t));
-  if(t.dataset.t==='ot')loadOvertime();});
+  ['cal','rec','sch','lv','ot'].forEach(id=>$('tab-'+id).classList.toggle('hidden',id!==t.dataset.t));
+  if(t.dataset.t==='ot')loadOvertime();
+  if(t.dataset.t==='lv')loadLeave();});
 $('recview').addEventListener('click',e=>{const s=e.target.closest('span');if(!s)return;
   document.querySelectorAll('#recview span').forEach(x=>x.classList.remove('on'));s.classList.add('on');
   $('rec-list').classList.toggle('hidden',s.dataset.v!=='list');$('rec-cal').classList.toggle('hidden',s.dataset.v!=='cal');});

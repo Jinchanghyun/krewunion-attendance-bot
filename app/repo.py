@@ -224,18 +224,45 @@ def employees_due_for_checkout(now: datetime) -> list[dict]:
 
 
 # ── 연차 ──────────────────────────────────────────────
-def create_leave(employee_id: str, kind: str, start: date, end: date, days: float) -> dict:
+def create_leave(employee_id: str, kind: str, start: date, end: date, days: float,
+                 reason: str | None = None) -> dict:
     with session_scope() as s:
         e = s.get(Employee, employee_id)
         e.leave_balance = leave_engine.apply_leave(e.leave_balance, days)
         lr = LeaveRequest(employee_id=employee_id, kind=kind, start=start,
-                          end=end, days=days, status="applied")
+                          end=end, days=days, reason=(reason or None), status="applied")
         s.add(lr)
         s.flush()
         return {"id": lr.id, "employee_id": employee_id, "kind": kind,
                 "kind_label": leave_engine.LEAVE_LABEL[kind], "emp_name": e.name,
                 "start": start, "end": end, "days": days,
                 "balance_after": e.leave_balance}
+
+
+def my_leaves(employee_id: str, limit: int = 30) -> list[dict]:
+    """본인 연차 신청 내역(최근순)."""
+    with session_scope() as s:
+        rows = s.scalars(select(LeaveRequest).where(
+            LeaveRequest.employee_id == employee_id
+        ).order_by(LeaveRequest.start.desc()).limit(limit)).all()
+        return [{"id": l.id, "kind": l.kind,
+                 "kind_label": leave_engine.LEAVE_LABEL.get(l.kind, l.kind),
+                 "start": l.start.isoformat(), "end": l.end.isoformat(),
+                 "days": l.days, "reason": getattr(l, "reason", None) or "",
+                 "status": l.status} for l in rows]
+
+
+def cancel_leave(employee_id: str, leave_id: int) -> bool:
+    """본인 연차 취소 — 차감했던 연차일수 복원 후 삭제."""
+    with session_scope() as s:
+        lr = s.get(LeaveRequest, leave_id)
+        if not lr or lr.employee_id != employee_id:
+            return False
+        e = s.get(Employee, employee_id)
+        if e is not None:
+            e.leave_balance = (e.leave_balance or 0) + (lr.days or 0)
+        s.delete(lr)
+        return True
 
 
 def get_leave(leave_id: int) -> dict:
@@ -266,7 +293,9 @@ def my_month(employee_id: str, month: str) -> dict:
                     "checkout": r.checked_out_at.strftime("%H:%M") if r.checked_out_at else None,
                     "work": r.work_minutes, "overtime": r.overtime_minutes,
                     "night": r.night_minutes, "holiday": r.holiday_minutes} for r in recs]
-        leaves = [{"kind": l.kind, "start": l.start.isoformat(), "end": l.end.isoformat()}
+        leaves = [{"id": l.id, "kind": l.kind, "start": l.start.isoformat(),
+                   "end": l.end.isoformat(), "days": l.days,
+                   "reason": getattr(l, "reason", None) or ""}
                   for l in s.scalars(select(LeaveRequest).where(
                       LeaveRequest.employee_id == employee_id,
                       LeaveRequest.start <= end, LeaveRequest.end >= start)).all()]
@@ -433,6 +462,22 @@ def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
                              checkin="09:00", checkout="18:00",
                              break_start="12:00", break_end="13:00",
                              recovery={"mode": "none"}, short_rules=[]))
+
+
+def update_employee_fields(emp_id: str, dept: str | None = None,
+                           name: str | None = None,
+                           display_name: str | None = None) -> None:
+    """구성원 정보(부서·이름·표시이름) 수정 — 전달된 값만 변경."""
+    with session_scope() as s:
+        e = s.get(Employee, emp_id)
+        if e is None:
+            raise LookupError("대상 직원을 찾을 수 없습니다.")
+        if dept is not None:
+            e.dept = dept.strip() or e.dept
+        if name is not None and name.strip():
+            e.name = name.strip()
+        if display_name is not None:
+            e.display_name = display_name.strip() or None
 
 
 def delete_employee(emp_id: str) -> None:

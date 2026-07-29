@@ -66,6 +66,7 @@ class LeaveRequest(Base):
     start: Mapped[Date] = mapped_column(Date)
     end: Mapped[Date] = mapped_column(Date)
     days: Mapped[float] = mapped_column(Float)
+    reason: Mapped[str | None] = mapped_column(String, nullable=True)   # 사유(선택)
     status: Mapped[str] = mapped_column(String, default="applied")      # 즉시 확정
     calendar_event_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
