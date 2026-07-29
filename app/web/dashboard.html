@@ -107,7 +107,7 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="kpi"><div class="lab">재택근무</div><div class="val" id="k-remote">—</div><div class="sub">명</div></div>
     <div class="kpi"><div class="lab">외근</div><div class="val" id="k-field">—</div><div class="sub">명</div></div>
     <div class="kpi"><div class="lab">휴가</div><div class="val" id="k-off">—</div><div class="sub">명</div></div>
-    <div class="kpi click" onclick="openAppr()" title="클릭하면 승인 요청 목록"><div class="lab">승인 대기 ▸</div><div class="val" id="k-appr">—</div><div class="sub">건 · 클릭</div></div>
+    <div class="kpi click" id="kpi-appr" onclick="openAppr()" title="클릭하면 승인 요청 목록"><div class="lab">승인 대기 <span style="font-size:1em">▷</span></div><div class="val" id="k-appr">—</div><div class="sub">건 · 클릭</div></div>
   </div>
 
   <!-- 실시간 근무현황: 전체폭 (인원 많을 때 좌우로 넓게) -->
@@ -205,7 +205,13 @@ function renderOverview(o){
   $('k-rate').textContent=o.attendance_rate+'%';
   $('k-rate-sub').textContent=(o.present??'-')+' / '+(o.eligible??'-')+'명';
   $('k-remote').textContent=o.remote; $('k-field').textContent=o.field;
-  $('k-off').textContent=o.off; $('k-appr').textContent=o.pending_approvals;
+  $('k-off').textContent=o.off;
+  const ap=o.pending_approvals||0; $('k-appr').textContent=ap;
+  const kc=$('kpi-appr'), red=ap>0;
+  if(kc){ kc.style.borderColor=red?'#dc2626':''; kc.style.background=red?'#fef2f2':'';
+    $('k-appr').style.color=red?'#dc2626':'';
+    kc.querySelector('.lab').style.color=red?'#dc2626':'';
+    kc.querySelector('.sub').style.color=red?'#dc2626':''; }
 }
 let liveExpanded=false; const LIVE_LIMIT=8;
 function renderLive(rows){
