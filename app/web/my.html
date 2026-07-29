@@ -179,6 +179,7 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
 const $=id=>document.getElementById(id);
 const API=window.SAM_API||location.origin;
 const TOKEN=new URLSearchParams(location.search).get('token')||'';
+if(TOKEN){try{history.replaceState(null,'',location.pathname);}catch(e){}}  /* 주소창에서 토큰 감춤 */
 const H=m=>(m?(Math.floor(m/60)+'시간 '+String(m%60).padStart(2,'0')+'분'):'—');
 const Hh=m=>(m?(Math.round(m/6)/10):0);
 const pad=n=>String(n).padStart(2,'0');

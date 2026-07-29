@@ -79,9 +79,9 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
     <div class="conf">
       <button onclick="goToMe()" style="background:#fff;border:1px solid var(--brand);color:var(--brand)">근무일정 관리</button>
-      <input id="api" placeholder="API base (예: https://your-app.vercel.app)" size="24">
-      <input id="tok" placeholder="Bearer 토큰" size="14">
-      <button onclick="reload()">불러오기</button>
+      <!-- API 주소·토큰은 매직 링크에서 자동 입력되므로 숨김(값은 JS가 사용) -->
+      <input id="api" type="hidden">
+      <input id="tok" type="hidden">
     </div>
   </div>
 
@@ -347,7 +347,8 @@ if(window.DEMO_API) $('api').value=window.DEMO_API;
 if(window.DEMO_TOKEN) $('tok').value=window.DEMO_TOKEN;
 /* 근태봇 '대시보드 가기' 매직 링크: ?token=... 이 있으면 자동 로그인 */
 const _urlTok=new URLSearchParams(location.search).get('token');
-if(_urlTok){ $('tok').value=_urlTok; if(!$('api').value) $('api').value=location.origin; }
+if(_urlTok){ $('tok').value=_urlTok; if(!$('api').value) $('api').value=location.origin;
+  try{ history.replaceState(null,'',location.pathname); }catch(e){} }  /* 주소창에서 토큰 감춤 */
 reload();
 </script>
 </body>

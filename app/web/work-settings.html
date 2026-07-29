@@ -184,6 +184,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 const $ = id => document.getElementById(id);
 const API = window.SAM_API || location.origin;
 const TOKEN = new URLSearchParams(location.search).get('token') || '';
+if(TOKEN){try{history.replaceState(null,'',location.pathname);}catch(e){}}  /* 주소창에서 토큰 감춤 */
 const TODAY = new Date();
 const WDN = {1:'월',2:'화',3:'수',4:'목',5:'금'};
 const pad=n=>String(n).padStart(2,'0');
