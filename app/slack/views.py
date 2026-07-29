@@ -92,9 +92,9 @@ def home_view(emp: dict, state: dict) -> dict:
     ])
     blocks.append({"type": "divider"})
 
-    # 근태 신청
-    blocks += group(":memo: *근태 신청*", "/attend leave", [
-        _button("연차·근태 신청", "open_leave"),
+    # 휴가 신청
+    blocks += group(":memo: *휴가 신청*", "/attend leave", [
+        _button("연차·반차 신청", "open_leave"),
     ])
     # 내 정보 — 웹 링크는 모바일 홈탭에서 'URL 버튼'이 안 열리는 이슈가 있어
     #           탭 가능한 텍스트 링크(<url|라벨>)로 제공(데스크톱·모바일 모두 동작).
