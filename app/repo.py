@@ -95,7 +95,8 @@ def today_state(employee_id: str) -> dict:
         return {"status": status, "worked": f"{mins // 60}시간 {mins % 60:02d}분"}
 
 
-def record_checkin(employee_id: str, kind: str, at: datetime) -> None:
+def record_checkin(employee_id: str, kind: str, at: datetime) -> dict:
+    """출근 기록 후 확인 메시지용 정보 반환."""
     today = at.date()
     with session_scope() as s:
         rec = s.scalar(select(AttendanceRecord).where(
@@ -106,25 +107,36 @@ def record_checkin(employee_id: str, kind: str, at: datetime) -> None:
         rec.type = kind
         if not rec.checked_in_at:
             rec.checked_in_at = at
+        return {"date": today, "kind": kind,
+                "checkin": rec.checked_in_at.strftime("%H:%M")}
 
 
-def record_checkout(employee_id: str, at: datetime) -> None:
+def record_checkout(employee_id: str, at: datetime) -> dict | None:
+    """퇴근 기록 후 근무시간 요약 반환."""
+    from app.domain.schedule import hm_to_min
     today = at.date()
     with session_scope() as s:
         rec = s.scalar(select(AttendanceRecord).where(
             AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == today))
         if not rec or not rec.checked_in_at:
-            return
+            return None
         rec.checked_out_at = at
         c = s.get(WorkConfig, employee_id)
         cfg = _config_dict(c) if c else work_config(employee_id)
-        summary = att_engine.summarize_day(
-            cfg, today, rec.checked_in_at, at,
-            leave_kind=_today_leave_kind(s, employee_id, today))
+        leave_kind = _today_leave_kind(s, employee_id, today)
+        summary = att_engine.summarize_day(cfg, today, rec.checked_in_at, at, leave_kind=leave_kind)
         rec.work_minutes = summary["worked"]
         rec.overtime_minutes = summary["overtime"]
         rec.night_minutes = summary["night"]
         rec.holiday_minutes = summary["holiday"]
+        break_min = 0
+        if cfg.get("break_start") and cfg.get("break_end") and leave_kind not in ("half_am", "half_pm"):
+            break_min = hm_to_min(cfg["break_end"]) - hm_to_min(cfg["break_start"])
+        return {"date": today,
+                "checkin": rec.checked_in_at.strftime("%H:%M"),
+                "checkout": at.strftime("%H:%M"),
+                "work": summary["worked"], "break": break_min,
+                "night": summary["night"]}
 
 
 def employees_due_for_checkin(now: datetime) -> list[dict]:
@@ -398,8 +410,10 @@ def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
 
 
 def delete_employee(emp_id: str) -> None:
-    from sqlalchemy import delete as _delete
+    from sqlalchemy import delete as _delete, update as _update
     with session_scope() as s:
+        # 이 사람을 팀장(manager_id)으로 참조하는 직원 해제 → FK 제약 회피
+        s.execute(_update(Employee).where(Employee.manager_id == emp_id).values(manager_id=None))
         for M in (AttendanceRecord, LeaveRequest, Approval):
             s.execute(_delete(M).where(M.employee_id == emp_id))
         wc = s.get(WorkConfig, emp_id)

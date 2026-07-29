@@ -57,44 +57,49 @@ def _refresh_home(client, emp):
                          view=views.home_view(emp, repo.today_state(emp["id"])))
 
 
+def _do_checkin(client, emp, kind):
+    info = repo.record_checkin(emp["id"], kind, datetime.now())
+    client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkin_confirm(info))
+    _refresh_home(client, emp)
+
+
+def _do_checkout(client, emp):
+    summary = repo.record_checkout(emp["id"], datetime.now())
+    if summary:
+        client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkout_confirm(summary))
+    _refresh_home(client, emp)
+
+
 @app.action("checkin")
 def on_checkin(ack, body, client):
     ack()
     emp = _guard(client, body["user"]["id"])
-    if not emp:
-        return
-    repo.record_checkin(emp["id"], "office", datetime.now())
-    _refresh_home(client, emp)
+    if emp:
+        _do_checkin(client, emp, "office")
 
 
 @app.action("remote")
 def on_remote(ack, body, client):
     ack()
     emp = _guard(client, body["user"]["id"])
-    if not emp:
-        return
-    repo.record_checkin(emp["id"], "remote", datetime.now())
-    _refresh_home(client, emp)
+    if emp:
+        _do_checkin(client, emp, "remote")
 
 
 @app.action("field")
 def on_field(ack, body, client):
     ack()
     emp = _guard(client, body["user"]["id"])
-    if not emp:
-        return
-    repo.record_checkin(emp["id"], "field", datetime.now())
-    _refresh_home(client, emp)
+    if emp:
+        _do_checkin(client, emp, "field")
 
 
 @app.action("checkout")
 def on_checkout(ack, body, client):
     ack()
     emp = _guard(client, body["user"]["id"])
-    if not emp:
-        return
-    repo.record_checkout(emp["id"], datetime.now())
-    _refresh_home(client, emp)
+    if emp:
+        _do_checkout(client, emp)
 
 
 # ── 연차: "연차" 치면 등록 화면 (두 경로) ─────────────
@@ -121,17 +126,14 @@ def attend_command(ack, body, client, respond):
     sub = parts[0].lower() if parts else "help"
     now = datetime.now()
     if sub == "in":
-        repo.record_checkin(emp["id"], "office", now)
-        respond(":white_check_mark: 출근 완료")
+        respond(views.checkin_confirm(repo.record_checkin(emp["id"], "office", now)))
     elif sub == "out":
-        repo.record_checkout(emp["id"], now)
-        respond(":wave: 퇴근 완료. 오늘도 수고하셨어요!")
+        _s = repo.record_checkout(emp["id"], now)
+        respond(views.checkout_confirm(_s) if _s else "출근 기록이 없어 퇴근할 수 없습니다.")
     elif sub in ("remote", "home", "homein"):
-        repo.record_checkin(emp["id"], "remote", now)
-        respond(":house: 재택근무로 출근 완료")
+        respond(views.checkin_confirm(repo.record_checkin(emp["id"], "remote", now)))
     elif sub == "field":
-        repo.record_checkin(emp["id"], "field", now)
-        respond(":round_pushpin: 외근으로 출근 완료")
+        respond(views.checkin_confirm(repo.record_checkin(emp["id"], "field", now)))
     elif sub == "status":
         st = repo.today_state(emp["id"])
         respond(f"오늘 상태: *{_STATUS_KO.get(st['status'], st['status'])}* · 근무 {st['worked']}")

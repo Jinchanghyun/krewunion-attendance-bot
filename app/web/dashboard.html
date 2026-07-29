@@ -245,7 +245,7 @@ function renderRoles(rows, me){
       <td style="font-family:monospace;font-size:12px;color:var(--muted)">${r.slack}</td>
       <td><select id="pos-${r.id}" onchange="posBadge('${r.id}')" style="padding:5px 8px;border:1px solid var(--line);border-radius:7px;font-size:12px;background:#fff">${opts}</select>
           <span class="pill ${bc}" id="posb-${r.id}" style="margin-left:6px">${bl}</span></td>
-      <td><button class="chip" onclick="savePos('${r.id}')">저장</button>${r.slack!==me?` <button class="chip" style="border-color:#dc2626;color:#dc2626" onclick="delMember('${r.id}','${r.name}')">삭제</button>`:''}</td>
+      <td><button class="chip" onclick="savePos('${r.id}')">저장</button> <button class="chip" onclick="inviteMember('${r.slack}','${r.name}')">초대</button>${r.slack!==me?` <button class="chip" style="border-color:#dc2626;color:#dc2626" onclick="delMember('${r.id}','${r.name}')">삭제</button>`:''}</td>
     </tr>`;
   }).join('');
   const sel=$('add-pos'); if(sel && !sel.options.length) sel.innerHTML=POSITIONS.map(p=>`<option>${p}</option>`).join('');
@@ -258,9 +258,18 @@ window.addMember=async()=>{
     const r=await fetch(base+'/api/employees/add',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({slack,name,dept,position})});
     const j=await r.json();
     if(!r.ok){msg.style.color='#dc2626';msg.textContent='추가 실패: '+(j.detail||('HTTP '+r.status));return;}
-    msg.style.color='var(--green)';msg.textContent=name+' 구성원을 추가했습니다.';
+    msg.style.color='var(--green)';msg.textContent=name+' 추가 완료'+(j.invited?' · 초대 메시지를 보냈습니다.':' (초대 DM 실패 — Slack ID 확인 필요)');
     $('add-slack').value='';$('add-name').value='';$('add-dept').value='';
     reload();
+  }catch(e){msg.style.color='#dc2626';msg.textContent='오류: '+e;}
+};
+window.inviteMember=async(slack,name)=>{
+  const base=$('api').value.trim(), tok=$('tok').value.trim(), msg=$('role-msg');
+  try{
+    const r=await fetch(base+'/api/employees/invite',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({slack})});
+    const j=await r.json();
+    if(!r.ok){msg.style.color='#dc2626';msg.textContent='초대 실패: '+(j.detail||('HTTP '+r.status));return;}
+    msg.style.color='var(--green)';msg.textContent=name+'님에게 초대 메시지를 보냈습니다.';
   }catch(e){msg.style.color='#dc2626';msg.textContent='오류: '+e;}
 };
 window.delMember=async(id,name)=>{

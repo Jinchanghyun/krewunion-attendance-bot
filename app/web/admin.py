@@ -255,9 +255,26 @@ async def api_set_role(req: Request, admin: dict = Depends(require_admin)):
     return {"ok": True, "employee_id": target, "role": role}
 
 
+def _invite_dm(slack: str, name: str) -> bool:
+    """새 구성원에게 Slack 초대(환영) DM 발송. 성공 True."""
+    try:
+        from app.slack.app import app as slack_app
+        from app.links import make_code
+        link = f"{settings.WEB_BASE_URL}/go/{make_code(slack, 'me')}"
+        slack_app.client.chat_postMessage(channel=slack, text=(
+            f":wave: *{name}님, 크루유니언 근태봇에 등록되었습니다!*\n"
+            f"이제 이 봇의 *홈* 탭에서 출근·퇴근·재택·연차를 기록할 수 있어요.\n"
+            f"• 출근 `/attend in`   • 퇴근 `/attend out`\n"
+            f"• 내 근태 보기: {link}"))
+        return True
+    except Exception as e:  # 미설치·잘못된 ID 등
+        print("invite DM failed:", e)
+        return False
+
+
 @api.post("/api/employees/add")
 async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
-    """구성원 추가(Slack ID 기준). 사번 미입력 시 Slack ID를 사번으로 사용."""
+    """구성원 추가(Slack ID 기준) + 초대 DM 발송."""
     if admin.get("role") not in ("hr", "sysadmin"):
         raise HTTPException(403, "구성원 추가는 사무장·지회장만 가능합니다.")
     body = await req.json()
@@ -269,13 +286,29 @@ async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
     dept = (body.get("dept") or "미지정").strip()
     position = body.get("position") or "일반"
     repo.upsert_employee(emp_id, slack, name, dept, position)
-    return {"ok": True, "id": emp_id}
+    invited = _invite_dm(slack, name) if body.get("invite", True) else False
+    return {"ok": True, "id": emp_id, "invited": invited}
+
+
+@api.post("/api/employees/invite")
+async def api_invite_member(req: Request, admin: dict = Depends(require_admin)):
+    """기존 구성원에게 초대 DM 재발송."""
+    if admin.get("role") not in ("hr", "sysadmin"):
+        raise HTTPException(403, "권한이 없습니다.")
+    body = await req.json()
+    emp = repo.try_employee_by_slack_id(body.get("slack", ""))
+    if not emp:
+        raise HTTPException(404, "구성원을 찾을 수 없습니다.")
+    ok = _invite_dm(emp["slack_user_id"], emp["name"])
+    if not ok:
+        raise HTTPException(400, "DM 발송 실패 — Slack ID가 맞는지, 봇이 설치됐는지 확인하세요.")
+    return {"ok": True}
 
 
 @api.post("/api/employees/delete")
 async def api_delete_member(req: Request, admin: dict = Depends(require_admin)):
-    if admin.get("role") not in ("hr", "sysadmin"):
-        raise HTTPException(403, "삭제 권한이 없습니다.")
+    if admin.get("role") != "sysadmin":   # 삭제는 지회장(시스템관리자)만
+        raise HTTPException(403, "구성원 삭제는 지회장만 가능합니다.")
     body = await req.json()
     repo.delete_employee(body.get("employee_id"))
     return {"ok": True}
@@ -331,20 +364,7 @@ def admin_add_employee(key: str = "", id: str = "", slack: str = "",
 def admin_delete_employee(key: str = "", id: str = ""):
     if key != settings.JWT_SECRET:
         raise HTTPException(403, "잘못된 key")
-    from sqlalchemy import select
-    from app.db import session_scope
-    from app.models import (Employee, WorkConfig, AttendanceRecord,
-                            LeaveRequest, Approval)
-    with session_scope() as s:
-        for M in (AttendanceRecord, LeaveRequest, Approval):
-            for row in s.scalars(select(M).where(M.employee_id == id)).all():
-                s.delete(row)
-        wc = s.get(WorkConfig, id)
-        if wc:
-            s.delete(wc)
-        e = s.get(Employee, id)
-        if e:
-            s.delete(e)
+    repo.delete_employee(id)
     return {"ok": True, "deleted": id}
 
 

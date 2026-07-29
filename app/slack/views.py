@@ -171,6 +171,34 @@ def checkout_prompt(emp: dict, checkout_hm: str = "") -> list:
     ]
 
 
+_WD_KO = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def _kdate(d) -> str:
+    return f"{d.month:02d}월 {d.day:02d}일({_WD_KO[d.weekday()]})"
+
+
+def _hm(m: int) -> str:
+    h, mm = divmod(m, 60)
+    return f"{h}시간 {mm}분" if h else f"{mm}분"
+
+
+def checkin_confirm(info: dict) -> str:
+    """출근/재택/외근 확인 메시지."""
+    label = {"office": "출근", "remote": "재택근무 출근", "field": "외근 출근"}.get(info.get("kind"), "출근")
+    return f"`{_kdate(info['date'])}` {label}했습니다.\n근무 시작 시간: {info['checkin']}"
+
+
+def checkout_confirm(s: dict) -> str:
+    """퇴근 확인 메시지 — 근무시간 요약."""
+    return (f"*근무시간*\n"
+            f"`{_kdate(s['date'])}` 퇴근했습니다.\n"
+            f"{_hm(s['work'])} ({s['checkin']} ~ {s['checkout']})\n"
+            f"휴게시간: {_hm(s['break'])}\n"
+            f"제외시간: 0분\n"
+            f"저녁시간: {_hm(s['night'])}")
+
+
 def leave_modal() -> dict:
     """연차 신청 모달 — 연차 / 오전반차(4h) / 오후반차(4h)."""
     return {
