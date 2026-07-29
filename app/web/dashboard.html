@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>크루유니언 근태봇 · 관리자 통계</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+:root{color-scheme:light;--bg:#f4f6fb;--card:#fff;--ink:#111827;--muted:#6b7280;--line:#e5e7eb;
+  --brand:#4f46e5;--brand-soft:#eef2ff;--green:#16a34a;--green-soft:#dcfce7;--blue:#2563eb;--blue-soft:#dbeafe;
+  --violet:#7c3aed;--violet-soft:#ede9fe;--amber:#d97706;--amber-soft:#fef3c7;--slate:#475569;--slate-soft:#f1f5f9;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",Roboto,sans-serif;}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 20px 60px;}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#4f46e5,#7c3aed);display:grid;place-items:center;color:#fff;font-weight:800;font-size:14px;}
+.brand h1{font-size:17px;margin:0;font-weight:700;}
+.brand p{margin:0;color:var(--muted);font-size:12px;}
+.conf{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.conf input{border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;}
+.conf button{border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;}
+.badge-demo{font-size:11px;color:var(--amber);background:var(--amber-soft);padding:3px 9px;border-radius:999px;}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
+.kpi .lab{color:var(--muted);font-size:12px;}
+.kpi .val{font-size:26px;font-weight:700;margin-top:6px;font-variant-numeric:tabular-nums;}
+.kpi .sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:16px;}
+.card h2{font-size:14px;margin:0 0 12px;font-weight:700;}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.chip{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:4px 11px;font-size:12px;cursor:pointer;}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff;}
+table{width:100%;border-collapse:collapse;}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);font-size:13px;}
+th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+tbody tr:last-child td{border-bottom:none;}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;}
+.b-work{background:var(--green-soft);color:#166534;}.b-remote{background:var(--blue-soft);color:#1e40af;}
+.b-field{background:var(--violet-soft);color:#5b21b6;}.b-off{background:var(--amber-soft);color:#92400e;}
+.b-none{background:var(--slate-soft);color:#334155;}
+.chart-box{position:relative;height:230px;}
+.appr{border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:9px;}
+.appr .t{font-weight:600;font-size:13px;}.appr .m{font-size:12px;color:var(--muted);margin-top:2px;}
+.tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--amber-soft);color:#92400e;}
+.empty{color:var(--muted);font-size:12px;text-align:center;padding:14px 0;}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="logo">근태</div>
+      <div><h1>크루유니언 근태봇 · 관리자 통계</h1>
+        <p>인사담당자/시스템관리자 전용 · <span id="mode"></span></p></div>
+    </div>
+    <div class="conf">
+      <input id="api" placeholder="API base (예: https://your-app.vercel.app)" size="30">
+      <input id="tok" placeholder="Bearer 토큰" size="16">
+      <button onclick="reload()">불러오기</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="lab">오늘 출근률</div><div class="val" id="k-rate">—</div><div class="sub" id="k-rate-sub">—</div></div>
+    <div class="kpi"><div class="lab">재택근무</div><div class="val" id="k-remote">—</div><div class="sub">명</div></div>
+    <div class="kpi"><div class="lab">외근</div><div class="val" id="k-field">—</div><div class="sub">명</div></div>
+    <div class="kpi"><div class="lab">휴가</div><div class="val" id="k-off">—</div><div class="sub">명</div></div>
+    <div class="kpi"><div class="lab">승인 대기</div><div class="val" id="k-appr">—</div><div class="sub">건</div></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>실시간 근무현황</h2>
+        <div class="filters" id="sfilters">
+          <span class="chip on" data-s="">전체</span>
+          <span class="chip" data-s="work">근무중</span>
+          <span class="chip" data-s="remote">재택</span>
+          <span class="chip" data-s="field">외근</span>
+          <span class="chip" data-s="off">휴가</span>
+        </div>
+        <table><thead><tr><th>직원</th><th>부서</th><th>상태</th></tr></thead><tbody id="live-body"></tbody></table>
+      </div>
+      <div class="card">
+        <h2>월 근무 통계 <span style="color:var(--muted);font-weight:400" id="mon-label"></span></h2>
+        <div class="chart-box"><canvas id="chart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>직원별 통계 (시간)</h2>
+        <table><thead><tr><th>직원</th><th>부서</th><th class="num">실근무</th><th class="num">연장</th><th class="num">야간</th><th class="num">휴일</th></tr></thead>
+          <tbody id="emp-body"></tbody></table>
+      </div>
+    </div>
+    <div>
+      <div class="card"><h2>승인센터 (연장·휴일)</h2><div id="appr-list"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 통계 API에 연결. API/토큰 미입력 시 데모 데이터로 렌더. */
+const $ = id => document.getElementById(id);
+const H = m => (m==null?'—':(Math.floor(m/60)+'.'+Math.round((m%60)/6)));  // 분→시간(소수1)
+let statusFilter = '', chart;
+const MONTH = new Date().toISOString().slice(0,7);
+
+const DEMO = {
+  overview:{attendance_rate:92,present:8,eligible:9,remote:2,field:1,off:1,pending_approvals:3},
+  monthly:{month:MONTH,worked:1028040/60,overtime:24840/60,night:1860/60,holiday:3120/60,records:210},
+  live:{rows:[
+    {employee_id:'K-2041',name:'홍길동',dept:'개발',status:'work'},
+    {employee_id:'K-2044',name:'박민수',dept:'개발',status:'remote'},
+    {employee_id:'K-3007',name:'최동욱',dept:'영업',status:'field'},
+    {employee_id:'K-2050',name:'이영희',dept:'디자인',status:'off'}]},
+  byemp:{rows:[
+    {name:'홍길동',dept:'개발',worked:12540,overtime:360,night:120,holiday:0},
+    {name:'김철수',dept:'개발',worked:13260,overtime:720,night:300,holiday:480}]},
+  pending:{rows:[
+    {id:1,employee:'김철수',dept:'개발',kind:'overtime',detail:'18:00~21:00 릴리스 대응'},
+    {id:2,employee:'최동욱',dept:'영업',kind:'holiday',detail:'8/2(일) 전시회 지원'}]}
+};
+
+async function api(path){
+  const base=$('api').value.trim(), tok=$('tok').value.trim();
+  if(!base) throw new Error('demo');
+  const r=await fetch(base+path,{headers: tok?{Authorization:'Bearer '+tok}:{}});
+  if(!r.ok) throw new Error('http '+r.status);
+  return r.json();
+}
+
+const SB={work:['근무중','b-work'],remote:['재택','b-remote'],field:['외근','b-field'],off:['휴가','b-off'],none:['미출근','b-none']};
+
+function renderOverview(o){
+  $('k-rate').textContent=o.attendance_rate+'%';
+  $('k-rate-sub').textContent=(o.present??'-')+' / '+(o.eligible??'-')+'명';
+  $('k-remote').textContent=o.remote; $('k-field').textContent=o.field;
+  $('k-off').textContent=o.off; $('k-appr').textContent=o.pending_approvals;
+}
+function renderLive(rows){
+  const f=rows.filter(r=>!statusFilter||r.status===statusFilter);
+  $('live-body').innerHTML = f.length? f.map(r=>{
+    const [lbl,cls]=SB[r.status]||SB.none;
+    return `<tr><td>${r.name}</td><td>${r.dept}</td><td><span class="badge ${cls}">${lbl}</span></td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">해당 상태의 직원이 없습니다</td></tr>';
+}
+function renderMonthly(m){
+  $('mon-label').textContent='· '+m.month;
+  const data=[m.worked,m.overtime,m.night,m.holiday].map(x=>Math.round(x));
+  const labels=['실근무','연장','야간','휴일'], colors=['#4f46e5','#f59e0b','#7c3aed','#dc2626'];
+  if(chart) chart.destroy();
+  chart=new Chart($('chart'),{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:8,maxBarThickness:60}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.y.toLocaleString()+' 시간'}}},
+      scales:{y:{beginAtZero:true,grid:{color:'#eef0f4'}},x:{grid:{display:false}}}}});
+}
+function renderByEmp(rows){
+  $('emp-body').innerHTML=rows.map(r=>`<tr><td>${r.name}</td><td>${r.dept}</td>
+    <td class="num">${H(r.worked)}</td><td class="num">${H(r.overtime)}</td>
+    <td class="num">${H(r.night)}</td><td class="num">${H(r.holiday)}</td></tr>`).join('');
+}
+function renderPending(rows){
+  $('appr-list').innerHTML = rows.length? rows.map(r=>`<div class="appr">
+    <div style="display:flex;justify-content:space-between"><span class="t">${r.employee} · ${r.dept}</span>
+    <span class="tag">${r.kind==='overtime'?'연장근무':'휴일근무'}</span></div>
+    <div class="m">${r.detail}</div></div>`).join('') : '<div class="empty">대기 중인 승인이 없습니다</div>';
+}
+
+async function reload(){
+  let demo=false, o,l,mo,be,pe;
+  try{
+    [o,l,mo,be,pe]=await Promise.all([
+      api('/api/stats/overview'), api('/api/live'),
+      api('/api/stats/monthly?month='+MONTH), api('/api/stats/by-employee?month='+MONTH),
+      api('/api/approvals/pending')]);
+    l=l.rows; be=be.rows; pe=pe.rows;
+  }catch(e){ demo=true; o=DEMO.overview; l=DEMO.live.rows; mo=DEMO.monthly; be=DEMO.byemp.rows; pe=DEMO.pending.rows; }
+  $('mode').textContent = demo?'데모 데이터(미연결)':'API 연결됨';
+  $('mode').className = demo?'badge-demo':'';
+  window._live=l;
+  renderOverview(o); renderLive(l); renderMonthly(mo); renderByEmp(be); renderPending(pe);
+}
+
+$('sfilters').addEventListener('click',e=>{
+  const c=e.target.closest('.chip'); if(!c)return;
+  document.querySelectorAll('#sfilters .chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); statusFilter=c.dataset.s; renderLive(window._live||[]);
+});
+/* 데모 서버(http://127.0.0.1:8000/)에서 열면 API 주소·토큰이 자동 입력됨 */
+if(window.DEMO_API) $('api').value=window.DEMO_API;
+if(window.DEMO_TOKEN) $('tok').value=window.DEMO_TOKEN;
+reload();
+</script>
+</body>
+</html>

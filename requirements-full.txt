@@ -1,0 +1,9 @@
+# 전체 개발/봇/테스트용 (Slack 봇·스케줄러·캘린더·pytest 포함)
+# 로컬 테스트나 Slack 봇 호스트에서는 이 파일을 설치:  pip install -r requirements-full.txt
+-r requirements.txt
+slack-bolt>=1.18
+celery>=5.3
+redis>=5.0
+google-api-python-client>=2.120
+google-auth>=2.29
+pytest>=8.0
