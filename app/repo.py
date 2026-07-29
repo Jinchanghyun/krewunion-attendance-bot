@@ -168,11 +168,13 @@ def employees_due_for_checkin(now: datetime) -> list[dict]:
 
 
 def record_manual(employee_id: str, d: date, checkin_hm: str,
-                  checkout_hm: str | None = None, kind: str = "office") -> None:
-    """누락(수동) 출퇴근 등록 — 과거 날짜 포함."""
+                  checkout_hm: str | None = None, kind: str = "office",
+                  away_min: int = 0) -> None:
+    """누락·수동 출퇴근 등록/수정 — 과거 날짜 포함. away_min: 자리비움(분) 차감."""
     from datetime import time as _t
     ci = datetime.combine(d, _t(*map(int, checkin_hm.split(":"))))
     co = datetime.combine(d, _t(*map(int, checkout_hm.split(":")))) if checkout_hm else None
+    away_min = max(0, int(away_min or 0))
     with session_scope() as s:
         rec = s.scalar(select(AttendanceRecord).where(
             AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == d))
@@ -187,10 +189,15 @@ def record_manual(employee_id: str, d: date, checkin_hm: str,
             cfg = _config_dict(c) if c else work_config(employee_id)
             summary = att_engine.summarize_day(cfg, d, ci, co,
                                                leave_kind=_today_leave_kind(s, employee_id, d))
-            rec.work_minutes = summary["worked"]
-            rec.overtime_minutes = summary["overtime"]
+            worked = max(0, summary["worked"] - away_min)   # 자리비움 차감
+            rec.work_minutes = worked
             rec.night_minutes = summary["night"]
-            rec.holiday_minutes = summary["holiday"]
+            if summary["holiday"]:
+                rec.holiday_minutes = worked
+                rec.overtime_minutes = 0
+            else:
+                rec.holiday_minutes = 0
+                rec.overtime_minutes = max(0, worked - summary["scheduled"])
 
 
 def team_status() -> list[dict]:
@@ -369,7 +376,12 @@ def my_month(employee_id: str, month: str) -> dict:
                 Approval.employee_id == employee_id,
                 Approval.kind == "overtime", Approval.status == "approved")).all():
             p = a.payload or {}
-            if str(p.get("date", ""))[:7] == month:
+            ref = str(p.get("month") or p.get("date", ""))[:7]
+            if ref != month:
+                continue
+            if p.get("minutes") is not None:       # 월 단위(선택적) 신청
+                approved_ot += int(p["minutes"])
+            else:                                  # 일 단위(start~end)
                 st, en = p.get("start"), p.get("end")
                 try:
                     if st and en:
@@ -384,6 +396,16 @@ def my_month(employee_id: str, month: str) -> dict:
     from app.domain import worktime as _wt
     yy, mm = int(month[:4]), int(month[5:7])
     wt = _wt.monthly_summary(cfg, records, leaves, yy, mm, approved_ot_min=approved_ot)
+    # 월 연장근로 승인 요청 가능 여부(선택적 근무: 월초 1~7일, 지난달분)
+    today = date.today()
+    can_req = False
+    if wt["work_type"] == "selective" and wt["pending_ot_min"] > 0:
+        prev = today.replace(day=1) - timedelta(days=1)
+        prev_month = f"{prev.year}-{prev.month:02d}"
+        can_req = (1 <= today.day <= 7) and (month == prev_month)
+    wt["can_request_ot"] = can_req
+    wt["ot_window_note"] = "월초(1~7일)에 지난달 연장근로를 신청할 수 있습니다." \
+        if wt["work_type"] == "selective" else ""
     return {"month": month, "records": records, "leaves": leaves,
             "config": cfg, "summary": summary, "worktime": wt}
 
@@ -493,6 +515,17 @@ def pending_overtime_notifications(today: date) -> list[dict]:
                                 "kind": "selective", "hours": round(summ["overtime_min"] / 60, 1),
                                 "ref": f"{py}-{pm:02d}"})
     return out
+
+
+def has_month_overtime_request(employee_id: str, month: str) -> bool:
+    """해당 월 연장근로가 이미 신청/승인됐는지."""
+    with session_scope() as s:
+        for a in s.scalars(select(Approval).where(
+                Approval.employee_id == employee_id, Approval.kind == "overtime",
+                Approval.status.in_(["requested", "approved"]))).all():
+            if str((a.payload or {}).get("month") or "")[:7] == month:
+                return True
+    return False
 
 
 def is_manager_of(approver_slack_id: str, employee_id: str | None = None) -> bool:

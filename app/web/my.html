@@ -206,6 +206,21 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
   <div id="err" class="card" style="display:none;color:#dc2626;font-size:13px"></div>
 </div>
 
+<!-- 출퇴근 편집 팝업 -->
+<div id="edit-modal" style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:900;padding:50px 16px" onclick="if(event.target===this)closeEdit()">
+  <div style="background:#fff;border-radius:16px;padding:18px 20px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><b id="edit-title">출퇴근 편집</b><button onclick="closeEdit()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--muted)">✕</button></div>
+    <div class="field" style="margin-bottom:8px"><label class="fl">형태</label><select id="ed-kind"><option value="office">사무실</option><option value="remote">재택</option><option value="field">외근</option></select></div>
+    <div class="row2">
+      <div class="field"><label class="fl">출근</label><input type="time" id="ed-in" step="1800"></div>
+      <div class="field"><label class="fl">퇴근</label><input type="time" id="ed-out" step="1800"></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label class="fl">자리비움 (30분 단위)</label><select id="ed-away"></select></div>
+    <button class="btn btn-p" id="ed-save" style="margin-top:14px;width:100%">저장</button>
+    <div id="ed-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
+  </div>
+</div>
+
 <script>
 const $=id=>document.getElementById(id);
 const API=window.SAM_API||location.origin;
@@ -272,7 +287,11 @@ function renderWorktime(){const w=DATA.worktime;const el=$('wt-panel');if(!el)re
   const box=(l,v,c)=>`<div style="flex:1;min-width:78px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:9px 11px"><div style="font-size:11px;color:var(--muted)">${l}</div><div style="font-size:15px;font-weight:700;margin-top:2px;${c||''}">${v}</div></div>`;
   const hh=m=>Hh(m)+'h';
   const ot=w.overtime_min?hh(w.overtime_min)+(w.overtime_capped?' <span style="font-size:10px">(최대)</span>':''):'0h';
-  const pend=(w.pending_ot_min||0)>0?`<div style="font-size:12px;color:#b45309;margin-bottom:8px">연장근로 승인대기 ${hh(w.pending_ot_min)}</div>`:'';
+  let pend='';
+  if((w.pending_ot_min||0)>0){const amt=hh(w.pending_ot_min);
+    if(w.can_request_ot) pend=`<div style="margin-bottom:8px"><button class="btn btn-p" style="padding:7px 14px" onclick="requestMonthOT()">연장근로 ${amt} 승인 요청</button></div>`;
+    else pend=`<div style="font-size:12px;color:#b45309;margin-bottom:8px">연장근로 미승인 ${amt}${w.ot_window_note?(' · '+w.ot_window_note):''}</div>`;
+  }
   el.innerHTML=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
     ${box('근무제도',WTN[w.work_type]||w.work_type)}
     ${box('월 소정근로 / 실+휴가',hh(w.scheduled_min)+' / '+hh(w.fulfilled_min))}
@@ -281,9 +300,32 @@ function renderWorktime(){const w=DATA.worktime;const el=$('wt-panel');if(!el)re
     ${box('연장근로(승인)',ot,w.overtime_min?'color:#dc2626':'')}
   </div>${pend}`;
 }
+window.requestMonthOT=async()=>{const m=iso(cur).slice(0,7);
+  try{const r=await api('/api/my/overtime/request-month',{method:'POST',body:JSON.stringify({month:m})});
+    alert(r.hours+'시간 연장근로 승인 요청을 보냈습니다. 사무장 승인 후 반영됩니다.');loadMonth();
+  }catch(e){alert('신청 실패: '+e);}};
 function renderSummary(){const s=DATA.summary;$('summary').innerHTML=
   [['실근무',s.worked],['연장',s.overtime],['야간',s.night],['휴일',s.holiday]]
   .map(([l,v])=>`<div class="b"><div class="l">${l}</div><div class="v">${Hh(v)}<span style="font-size:12px;color:var(--muted)">h</span></div></div>`).join('');}
+
+/* 달력 날짜 클릭 → 출퇴근 편집 팝업 */
+let editDate=null;
+window.closeEdit=()=>{$('edit-modal').style.display='none';};
+function openEditDay(ds){editDate=ds;const {rec}=maps();const r=rec[ds];
+  $('edit-title').textContent=ds+' 출퇴근 편집';
+  $('ed-kind').value=(r&&r.type)||'office';
+  $('ed-in').value=(r&&r.checkin)||(CFG&&CFG.checkin)||'09:00';
+  $('ed-out').value=(r&&r.checkout)||(CFG&&CFG.checkout)||'18:00';
+  if(!$('ed-away').options.length){let o='';for(let mm=0;mm<=480;mm+=30){const lab=mm===0?'없음':(mm>=60?(Math.floor(mm/60)+'시간'+(mm%60?' 30분':'')):'30분');o+=`<option value="${mm}">${lab}</option>`;}$('ed-away').innerHTML=o;}
+  $('ed-away').value='0';$('ed-msg').textContent='';
+  $('edit-modal').style.display='flex';}
+document.getElementById('calgrid').addEventListener('click',e=>{const c=e.target.closest('[data-d]');if(c)openEditDay(c.dataset.d);});
+document.getElementById('ed-save').addEventListener('click',async()=>{const msg=$('ed-msg');
+  const ci=$('ed-in').value,co=$('ed-out').value;
+  if(!ci){msg.style.color='#dc2626';msg.textContent='출근 시간을 입력하세요.';return;}
+  try{await api('/api/my/attendance/edit',{method:'POST',body:JSON.stringify({date:editDate,kind:$('ed-kind').value,checkin:ci,checkout:co||null,away_min:+$('ed-away').value})});
+    closeEdit();loadMonth();
+  }catch(e){msg.style.color='#dc2626';msg.textContent='저장 실패: '+e;}});
 
 function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const start=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate();const {rec,lv}=maps();
   let cells='';for(let i=0;i<start;i++)cells+='<div class="cell mut"></div>';
@@ -296,7 +338,7 @@ function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const s
       if(isShort(date))inner+=`<div class="badge bg-short">단축</div>`;}
     else if(isShort(date))inner+=`<div class="badge bg-short">단축</div>`;
     if(iso(date)===iso(TODAY))cls+=' today';
-    cells+=`<div class="${cls}">${inner}</div>`;}
+    cells+=`<div class="${cls}" data-d="${k}" style="cursor:pointer">${inner}</div>`;}
   grid.innerHTML=cells;}
 
 function renderRecList(){const rows=(DATA.records||[]);$('rec-body').innerHTML=rows.length?rows.map(r=>{

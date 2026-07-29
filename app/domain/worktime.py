@@ -91,10 +91,11 @@ def monthly_summary(config: dict, records: list[dict], leaves: list[dict],
     """
     work_type = config.get("work_type", "normal")
     scheduled = month_scheduled_minutes(config, year, month)
-    actual = sum(int(r.get("work") or 0) for r in records)
     lv_min = leave_used_minutes(config, leaves, year, month)
 
-    if work_type == "flex":                       # 시차: 하루 8h 초과분 합
+    if work_type == "flex":
+        # 시차: 실근로는 하루 8h까지만 인정. 초과분은 '승인 전' 미반영(초과근로 후보).
+        actual = 0
         raw_ot = 0
         for r in records:
             w = int(r.get("work") or 0)
@@ -105,11 +106,16 @@ def monthly_summary(config: dict, records: list[dict], leaves: list[dict],
                     weekend = date.fromisoformat(ds).weekday() >= 5  # 토·일
                 except Exception:
                     weekend = False
-            raw_ot += w if weekend else max(0, w - STD_DAY_MIN)  # 주말(무급휴무·휴일) 근로는 전부 초과
-    else:                                         # 선택적 등: 월 소정 초과분(=실근로 초과)
+            if weekend:                # 주말(무급휴무·휴일): 실근로 0, 전부 초과 후보
+                raw_ot += w
+            else:
+                actual += min(w, STD_DAY_MIN)
+                raw_ot += max(0, w - STD_DAY_MIN)
+    else:                             # 선택적 등: 실근로 전체, 월 소정 초과분이 초과 후보
+        actual = sum(int(r.get("work") or 0) for r in records)
         raw_ot = max(0, actual - scheduled)
     raw_ot = min(raw_ot, MAX_OT_MIN)
-    overtime = min(max(0, approved_ot_min), MAX_OT_MIN)   # 승인분만 인정
+    overtime = min(max(0, approved_ot_min), MAX_OT_MIN)   # 승인분만 초과근로로 인정
 
     return {
         "work_type": work_type,

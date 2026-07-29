@@ -136,6 +136,27 @@ def my_month(month: str, emp: dict = Depends(require_employee)):
     return repo.my_month(emp["id"], month)
 
 
+@api.post("/api/my/attendance/edit")
+async def edit_my_attendance(req: Request, emp: dict = Depends(require_employee)):
+    """달력에서 특정 날짜의 출퇴근을 편집(30분 단위) + 자리비움 차감."""
+    from datetime import date as _date
+    body = await req.json()
+    try:
+        d = _date.fromisoformat(body.get("date"))
+    except Exception:
+        raise HTTPException(400, "날짜가 올바르지 않습니다.")
+    checkin = (body.get("checkin") or "").strip()
+    if not checkin:
+        raise HTTPException(400, "출근 시간을 입력하세요.")
+    checkout = (body.get("checkout") or "").strip() or None
+    kind = body.get("kind") or "office"
+    if kind not in ("office", "remote", "field"):
+        kind = "office"
+    away = int(body.get("away_min") or 0)
+    repo.record_manual(emp["id"], d, checkin, checkout, kind=kind, away_min=away)
+    return {"ok": True}
+
+
 @api.get("/api/my/overtime")
 def my_overtime(emp: dict = Depends(require_employee)):
     return {"rows": repo.my_approvals(emp["id"])}
@@ -150,6 +171,28 @@ async def create_my_overtime(req: Request, emp: dict = Depends(require_employee)
     detail = body.get("detail", "")
     a = repo.create_approval(emp["id"], kind, {"detail": detail, **body})
     return {"ok": True, "id": a["id"]}
+
+
+@api.post("/api/my/overtime/request-month")
+async def request_month_overtime(req: Request, emp: dict = Depends(require_employee)):
+    """근무시스템에서 계산된 월 연장근로를 승인 요청(선택적 근무: 월초·지난달분)."""
+    body = await req.json()
+    month = (body.get("month") or "").strip()
+    if len(month) != 7:
+        raise HTTPException(400, "month(YYYY-MM)가 필요합니다.")
+    wt = repo.my_month(emp["id"], month).get("worktime", {})
+    if not wt.get("can_request_ot"):
+        raise HTTPException(400, wt.get("ot_window_note") or "지금은 연장근로를 신청할 수 없습니다.")
+    if repo.has_month_overtime_request(emp["id"], month):
+        raise HTTPException(400, "이미 해당 월 연장근로를 신청했습니다.")
+    minutes = int(wt.get("pending_ot_min") or 0)
+    if minutes <= 0:
+        raise HTTPException(400, "신청할 연장근로가 없습니다.")
+    hours = round(minutes / 60, 1)
+    a = repo.create_approval(emp["id"], "overtime",
+                             {"month": month, "minutes": minutes,
+                              "detail": f"{month} 월 연장근로 {hours}시간"})
+    return {"ok": True, "id": a["id"], "minutes": minutes, "hours": hours}
 
 
 @api.post("/api/my/overtime/cancel")
