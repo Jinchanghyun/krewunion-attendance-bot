@@ -59,8 +59,9 @@ tbody tr:last-child td{border-bottom:none;}
         <p>인사담당자/시스템관리자 전용 · <span id="mode"></span></p></div>
     </div>
     <div class="conf">
-      <input id="api" placeholder="API base (예: https://your-app.vercel.app)" size="30">
-      <input id="tok" placeholder="Bearer 토큰" size="16">
+      <button onclick="goToMe()" style="background:#fff;border:1px solid var(--brand);color:var(--brand)">내 근태(직원 모드)</button>
+      <input id="api" placeholder="API base (예: https://your-app.vercel.app)" size="24">
+      <input id="tok" placeholder="Bearer 토큰" size="14">
       <button onclick="reload()">불러오기</button>
     </div>
   </div>
@@ -117,6 +118,9 @@ const $ = id => document.getElementById(id);
 const H = m => (m==null?'—':(Math.floor(m/60)+'.'+Math.round((m%60)/6)));  // 분→시간(소수1)
 let statusFilter = '', chart;
 const MONTH = new Date().toISOString().slice(0,7);
+window.goToMe=()=>{const base=$('api').value.trim()||location.origin; const tok=$('tok').value.trim();
+  if(!tok){alert('먼저 토큰을 입력하고 불러오기 하세요.');return;}
+  location.href=base+'/me?token='+encodeURIComponent(tok);};
 
 const DEMO = {
   overview:{attendance_rate:92,present:8,eligible:9,remote:2,field:1,off:1,pending_approvals:3},

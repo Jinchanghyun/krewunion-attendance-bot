@@ -11,10 +11,14 @@ def _button(text, action_id, value="", style=None):
     return b
 
 
+_link_seq = [0]
+
+
 def _link_button(text, url, style=None):
-    """url 속성이 있으면 클릭 시 브라우저로 해당 주소를 연다(백엔드 이벤트 없음)."""
+    """url 버튼(클릭 시 브라우저로 이동). action_id는 뷰 내에서 유일해야 하므로 자동 부여."""
+    _link_seq[0] += 1
     b = {"type": "button", "text": {"type": "plain_text", "text": text},
-         "url": url, "action_id": "open_web"}
+         "url": url, "action_id": f"open_web_{_link_seq[0]}"}
     if style:
         b["style"] = style
     return b
