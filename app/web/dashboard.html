@@ -297,18 +297,20 @@ async function reload(){
   }
 }
 
-const POSITIONS=['지회장','수석부지회장','사무장','부지회장','전임스텝','조직부장','정책홍보부장','재무운영부장','대외협력부장','일반'];
+const POSITIONS=['지회장','수석부지회장','사무장','부지회장','전임 스탭','조직부장','정책홍보부장','재무운영부장','대외협력부장'];
 const DEPTS=['조직부','정책홍보부','재무운영부','대외협력부'];
-const deptOpts=cur=>DEPTS.map(d=>`<option value="${d}" ${d===cur?'selected':''}>${d}</option>`).join('');
-const POS_ROLE={지회장:'sysadmin',수석부지회장:'sysadmin',사무장:'hr',부지회장:'employee',전임스텝:'employee',조직부장:'employee',정책홍보부장:'employee',재무운영부장:'employee',대외협력부장:'employee',일반:'employee'};
+const deptOpts=cur=>{const has=DEPTS.includes(cur);
+  return `<option value="" ${has?'':'selected'} disabled hidden>부서</option>`+
+    DEPTS.map(d=>`<option value="${d}" ${d===cur?'selected':''}>${d}</option>`).join('');};
+const POS_ROLE={지회장:'sysadmin',수석부지회장:'sysadmin',사무장:'hr',부지회장:'employee','전임 스탭':'employee',조직부장:'employee',정책홍보부장:'employee',재무운영부장:'employee',대외협력부장:'employee'};
 const ROLE_BADGE={sysadmin:['관리자','p-ok'],hr:['관리자(승인)','p-ok'],employee:['일반','p-cx']};
 const DEMO_EMP=[
   {id:'K-3001',name:'김인사',dept:'경영지원',slack:'U3001',position:'사무장'},
   {id:'K-9001',name:'박부장',dept:'개발',slack:'U9001',position:'조직부장'},
-  {id:'K-2041',name:'홍길동',dept:'개발',slack:'U2041',position:'일반'}];
+  {id:'K-2041',name:'홍길동',dept:'개발',slack:'U2041',position:'전임 스탭'}];
 function renderRoles(rows, me){
   $('role-body').innerHTML = rows.map(r=>{
-    const pos=r.position||'일반';
+    const pos=r.position||'전임 스탭';
     const opts=POSITIONS.map(p=>`<option value="${p}" ${p===pos?'selected':''}>${p}</option>`).join('');
     const [bl,bc]=ROLE_BADGE[POS_ROLE[pos]||'employee'];
     return `<tr>
@@ -319,8 +321,8 @@ function renderRoles(rows, me){
       <td><button class="chip" onclick="savePos('${r.id}')">저장</button> <button class="chip" onclick="inviteMember('${r.slack}','${r.name}')">초대</button>${r.slack!==me?` <button class="chip" style="border-color:#dc2626;color:#dc2626" onclick="delMember('${r.id}','${r.name}')">삭제</button>`:''}</td>
     </tr>`;
   }).join('');
-  const sel=$('add-pos'); if(sel && !sel.options.length) sel.innerHTML=POSITIONS.map(p=>`<option>${p}</option>`).join('');
-  const dsel=$('add-dept'); if(dsel && !dsel.options.length) dsel.innerHTML=DEPTS.map(d=>`<option>${d}</option>`).join('');
+  const sel=$('add-pos'); if(sel && !sel.options.length) sel.innerHTML='<option value="" selected disabled hidden>직책</option>'+POSITIONS.map(p=>`<option>${p}</option>`).join('');
+  const dsel=$('add-dept'); if(dsel && !dsel.options.length) dsel.innerHTML='<option value="" selected disabled hidden>부서</option>'+DEPTS.map(d=>`<option>${d}</option>`).join('');
 }
 window.addMember=async()=>{
   const slack=$('add-slack').value.trim(), name=$('add-name').value.trim(), dept=$('add-dept').value.trim(), position=$('add-pos').value;

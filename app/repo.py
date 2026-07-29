@@ -24,7 +24,7 @@ def _emp_dict(e: Employee) -> dict:
     return {"id": e.id, "slack_user_id": e.slack_user_id, "name": e.name,
             "dept": e.dept, "manager_id": e.manager_id, "team_id": e.team_id,
             "leave_balance": e.leave_balance, "role": e.role,
-            "position": getattr(e, "position", "일반")}
+            "position": getattr(e, "position", _DEFAULT_POSITION)}
 
 
 def _config_dict(c: WorkConfig) -> dict:
@@ -373,17 +373,17 @@ SUPERUSER_SLACK_IDS = {"U02V1HKUJNA"}
 SINGLE_POSITIONS = ("지회장", "수석부지회장", "사무장")
 
 # 조합 직책(표시용) → 권한 등급 매핑
-POSITIONS = ("지회장", "수석부지회장", "사무장", "부지회장", "전임스텝",
-             "조직부장", "정책홍보부장", "재무운영부장", "대외협력부장", "일반")
+POSITIONS = ("지회장", "수석부지회장", "사무장", "부지회장", "전임 스탭",
+             "조직부장", "정책홍보부장", "재무운영부장", "대외협력부장")
 POSITION_ROLE = {
     # 관리자(통계·설정 접근): 지회장·수석부지회장·사무장
     "지회장": "sysadmin", "수석부지회장": "sysadmin", "사무장": "hr",
     # 그 외 직책은 일반 권한(직원)
-    "부지회장": "employee", "전임스텝": "employee",
+    "부지회장": "employee", "전임 스탭": "employee",
     "조직부장": "employee", "정책홍보부장": "employee",
     "재무운영부장": "employee", "대외협력부장": "employee",
-    "일반": "employee",
 }
+_DEFAULT_POSITION = "전임 스탭"   # '일반' 대체 — 기본/강등 시 직책
 APPROVER_POSITIONS = ("사무장",)          # 연장·휴일근무 승인권자
 
 
@@ -427,10 +427,11 @@ def assign_position(actor_slack_id: str, target_employee_id: str, position: str)
             if (new_role == "sysadmin" or target.role == "sysadmin") and actor.role != "sysadmin":
                 raise PermissionError("시스템관리자급 직책은 지회장(sysadmin)만 지정할 수 있습니다.")
         if position in SINGLE_POSITIONS:
-            # 단일 직책: 기존 보유자 → '일반'으로 자동 인수인계
+            # 단일 직책(지회장·수석부지회장·사무장): 각 1명만.
+            # 새로 임명하면 기존 보유자는 '전임 스탭'으로 자동 인수인계(강등).
             for other in s.scalars(select(Employee).where(
                     Employee.position == position, Employee.id != target_employee_id)).all():
-                other.position = "일반"
+                other.position = _DEFAULT_POSITION
                 other.role = "employee"
         elif not is_super and target.role == "sysadmin" and new_role != "sysadmin" \
                 and _count_sysadmins(s) <= 1:
@@ -440,7 +441,7 @@ def assign_position(actor_slack_id: str, target_employee_id: str, position: str)
 
 
 def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
-                    position: str = "일반", display_name: str | None = None) -> None:
+                    position: str = _DEFAULT_POSITION, display_name: str | None = None) -> None:
     """구성원 등록/수정 — 직책에 맞는 권한(role)도 함께 설정.
     name=Slack Full name, display_name=Slack Display name(표시용)."""
     from datetime import date
@@ -511,7 +512,7 @@ def list_all_employees() -> list[dict]:
         return [{"id": e.id, "name": e.name,
                  "display_name": getattr(e, "display_name", None) or "",
                  "dept": e.dept, "role": e.role,
-                 "position": getattr(e, "position", "일반"), "slack": e.slack_user_id}
+                 "position": getattr(e, "position", _DEFAULT_POSITION), "slack": e.slack_user_id}
                 for e in s.scalars(select(Employee).order_by(Employee.dept, Employee.name)).all()]
 
 

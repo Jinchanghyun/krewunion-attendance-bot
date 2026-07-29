@@ -49,7 +49,7 @@ def _ensure_columns() -> None:
     Postgres는 ADD COLUMN IF NOT EXISTS로 idempotent, SQLite는 예외 무시."""
     from sqlalchemy import text
     stmts = [
-        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS position VARCHAR DEFAULT '일반'",
+        "ALTER TABLE employees ADD COLUMN IF NOT EXISTS position VARCHAR DEFAULT '전임 스탭'",
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS display_name VARCHAR",
         "ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS reason VARCHAR",
     ]

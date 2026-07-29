@@ -371,7 +371,7 @@ async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
     display = (body.get("display_name") or "").strip() or prof["display"] or ""
     emp_id = (body.get("id") or slack).strip()
     dept = (body.get("dept") or "미지정").strip()
-    position = body.get("position") or "일반"
+    position = body.get("position") or "전임 스탭"
     repo.upsert_employee(emp_id, slack, name, dept, position, display_name=display)
     invited = _invite_dm(slack, display or name) if body.get("invite", True) else False
     return {"ok": True, "id": emp_id, "name": name, "display_name": display, "invited": invited}
