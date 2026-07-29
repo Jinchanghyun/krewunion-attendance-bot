@@ -210,7 +210,7 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
 <div id="edit-modal" style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:flex-start;justify-content:center;z-index:900;padding:50px 16px" onclick="if(event.target===this)closeEdit()">
   <div style="background:#fff;border-radius:16px;padding:18px 20px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><b id="edit-title">출퇴근 편집</b><button onclick="closeEdit()" style="border:none;background:none;font-size:18px;cursor:pointer;color:var(--muted)">✕</button></div>
-    <div class="field" style="margin-bottom:8px"><label class="fl">형태</label><select id="ed-kind"><option value="office">사무실</option><option value="remote">재택</option><option value="field">외근</option></select></div>
+    <div class="field" style="margin-bottom:8px"><label class="fl">형태</label><select id="ed-kind"><option value="office">사무실</option><option value="remote">재택</option><option value="field">외근</option><option value="dayoff">데이오프 (근무 안 함)</option></select></div>
     <div class="row2">
       <div class="field"><label class="fl">출근</label><input type="time" id="ed-in" step="1800"></div>
       <div class="field"><label class="fl">퇴근</label><input type="time" id="ed-out" step="1800"></div>
@@ -274,7 +274,7 @@ function isShort(date){if(!CFG||!(CFG.short_rules||[]).length)return false;const
 function maps(){const rec={},lv={};(DATA.records||[]).forEach(r=>rec[r.date]=r);
   (DATA.leaves||[]).forEach(l=>{let d=new Date(l.start+'T00:00'),e=new Date(l.end+'T00:00');for(;d<=e;d.setDate(d.getDate()+1))lv[iso(d)]=l.kind;});
   return {rec,lv};}
-const TYPE={office:['출','bg-work'],remote:['재','bg-remote'],field:['외','bg-field']};
+const TYPE={office:['출','bg-work'],remote:['재','bg-remote'],field:['외','bg-field'],dayoff:['데이오프','bg-off']};
 const LV={annual:['연차','bg-off'],half_am:['오전반차','bg-off'],half_pm:['오후반차','bg-off'],
   sabbatical:['안식휴가','bg-off'],family_care:['가족돌봄','bg-off'],family_care_paid:['가족돌봄(유급)','bg-off'],family_care_unpaid:['가족돌봄(무급)','bg-off'],refresh:['리프레쉬','bg-off'],bd:['BD','bg-off'],
   seollal:['설날','bg-off'],chuseok:['추석','bg-off'],health:['건강휴가','bg-off'],
@@ -319,6 +319,7 @@ function openEditDay(ds){editDate=ds;const {rec}=maps();const r=rec[ds];
   $('ed-away').value='0';$('ed-msg').textContent='';
   $('edit-modal').style.display='flex';}
 document.getElementById('calgrid').addEventListener('click',e=>{const c=e.target.closest('[data-d]');if(c)openEditDay(c.dataset.d);});
+document.getElementById('ed-kind').addEventListener('change',()=>{const off=$('ed-kind').value==='dayoff';['ed-in','ed-out','ed-away'].forEach(id=>{$(id).disabled=off;$(id).style.opacity=off?.4:1;});});
 document.getElementById('ed-save').addEventListener('click',async()=>{const msg=$('ed-msg');
   const ci=$('ed-in').value,co=$('ed-out').value;
   if(!ci){msg.style.color='#dc2626';msg.textContent='출근 시간을 입력하세요.';return;}
@@ -327,6 +328,7 @@ document.getElementById('ed-save').addEventListener('click',async()=>{const msg=
   }catch(e){msg.style.color='#dc2626';msg.textContent='저장 실패: '+e;}});
 
 function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const start=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate();const {rec,lv}=maps();
+  const W=DATA.worktime;const FULFILLED=W&&W.work_type==='selective'&&W.scheduled_min>0&&W.actual_min>=W.scheduled_min;
   let cells='';for(let i=0;i<start;i++)cells+='<div class="cell mut"></div>';
   for(let dd=1;dd<=dim;dd++){const date=new Date(y,m,dd),k=iso(date);let cls='cell',inner=`<div class="dn">${dd}</div>`;
     if(date.getDay()===0)cls+='';
@@ -335,13 +337,15 @@ function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const s
     else if(rec[k]){const [lb,c]=TYPE[rec[k].type]||['출','bg-work'];inner+=`<div class="badge ${c}">${lb} ${rec[k].checkin||''}</div>`;
       if(rec[k].checkout)inner+=`<div class="tt">~${rec[k].checkout}</div>`;
       if(isShort(date))inner+=`<div class="badge bg-short">단축</div>`;}
+    else if(FULFILLED && date.getDay()>=1 && date.getDay()<=5 && k>=iso(TODAY)){
+      inner+=`<div class="badge bg-off" title="소정근로 충족 — 데이오프">데이오프</div>`;}
     else if(isShort(date))inner+=`<div class="badge bg-short">단축</div>`;
     if(iso(date)===iso(TODAY))cls+=' today';
     cells+=`<div class="${cls}" data-d="${k}" style="cursor:pointer">${inner}</div>`;}
   grid.innerHTML=cells;}
 
 function renderRecList(){const rows=(DATA.records||[]);$('rec-body').innerHTML=rows.length?rows.map(r=>{
-  const [lb]=TYPE[r.type]||['출'];const tn={office:'사무실',remote:'재택',field:'외근'}[r.type]||r.type;
+  const [lb]=TYPE[r.type]||['출'];const tn={office:'사무실',remote:'재택',field:'외근',dayoff:'데이오프'}[r.type]||r.type;
   return `<tr><td>${r.date}</td><td>${tn}</td><td>${r.checkin||'—'}</td><td>${r.checkout||'—'}</td><td class="num">${H(r.work)}</td><td class="num">${r.overtime?H(r.overtime):'—'}</td></tr>`;
 }).join(''):'<tr><td colspan="6" class="empty">이 달 출퇴근 기록이 없습니다</td></tr>';}
 

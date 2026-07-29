@@ -145,11 +145,14 @@ async def edit_my_attendance(req: Request, emp: dict = Depends(require_employee)
         d = _date.fromisoformat(body.get("date"))
     except Exception:
         raise HTTPException(400, "날짜가 올바르지 않습니다.")
+    kind = body.get("kind") or "office"
+    if kind == "dayoff":     # 데이오프: 그날 근무 안 함
+        repo.set_dayoff(emp["id"], d)
+        return {"ok": True}
     checkin = (body.get("checkin") or "").strip()
     if not checkin:
         raise HTTPException(400, "출근 시간을 입력하세요.")
     checkout = (body.get("checkout") or "").strip() or None
-    kind = body.get("kind") or "office"
     if kind not in ("office", "remote", "field"):
         kind = "office"
     away = int(body.get("away_min") or 0)

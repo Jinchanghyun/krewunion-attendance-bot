@@ -200,6 +200,23 @@ def record_manual(employee_id: str, d: date, checkin_hm: str,
                 rec.overtime_minutes = max(0, worked - summary["scheduled"])
 
 
+def set_dayoff(employee_id: str, d: date) -> None:
+    """데이오프(선택적 근무: 그날 근무 안 함) — 실근로 0, 휴가 아님."""
+    with session_scope() as s:
+        rec = s.scalar(select(AttendanceRecord).where(
+            AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == d))
+        if not rec:
+            rec = AttendanceRecord(employee_id=employee_id, date=d)
+            s.add(rec)
+        rec.type = "dayoff"
+        rec.checked_in_at = None
+        rec.checked_out_at = None
+        rec.work_minutes = 0
+        rec.overtime_minutes = 0
+        rec.night_minutes = 0
+        rec.holiday_minutes = 0
+
+
 def team_status() -> list[dict]:
     """팀원 오늘 현황(간단)."""
     return live_status()["rows"]
