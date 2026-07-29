@@ -153,6 +153,32 @@ def employees_due_for_checkin(now: datetime) -> list[dict]:
     return due
 
 
+def employees_due_for_checkout(now: datetime) -> list[dict]:
+    """퇴근 시각이 됐는데 아직 퇴근 안 찍은 직원(출근한 사람만)."""
+    today, hm = now.date(), now.strftime("%H:%M")
+    due = []
+    with session_scope() as s:
+        for e in s.scalars(select(Employee)).all():
+            rec = s.scalar(select(AttendanceRecord).where(
+                AttendanceRecord.employee_id == e.id, AttendanceRecord.date == today))
+            if not rec or not rec.checked_in_at or rec.checked_out_at:
+                continue  # 미출근이거나 이미 퇴근
+            c = s.get(WorkConfig, e.id)
+            cfg = _config_dict(c) if c else work_config(e.id)
+            pt = prompt_times(cfg, today, _today_leave_kind(s, e.id, today))
+            if not pt["checkout"] or pt["checkout"] > hm:
+                continue
+            if s.scalar(select(SlackReminder).where(
+                    SlackReminder.employee_id == e.id, SlackReminder.date == today,
+                    SlackReminder.kind == "checkout")):
+                continue
+            s.add(SlackReminder(employee_id=e.id, date=today, kind="checkout"))
+            d = _emp_dict(e)
+            d["checkout"] = pt["checkout"]
+            due.append(d)
+    return due
+
+
 # ── 연차 ──────────────────────────────────────────────
 def create_leave(employee_id: str, kind: str, start: date, end: date, days: float) -> dict:
     with session_scope() as s:

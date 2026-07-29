@@ -92,15 +92,29 @@ UNREGISTERED_MSG = "이 앱은 등록된 임직원만 사용할 수 있어요. �
 
 
 def checkin_prompt(emp: dict, checkin_hm: str) -> list:
-    """예약 출근 알림 메시지."""
+    """예약 출근 알림 메시지. 재택/외근을 누르면 그 형태로 자동 출근 기록된다."""
     return [
         {"type": "section", "text": {"type": "mrkdwn",
             "text": f"좋은 아침이에요, {emp['name']}님 :sunny:\n출근할 시간입니다. "
                     f"오늘 근무 형태를 선택하세요. _(설정: {checkin_hm} 출근)_"}},
         {"type": "actions", "elements": [
-            _button("출근", "checkin", style="primary"),
-            _button("재택", "remote"),
+            _button("출근(사무실)", "checkin", style="primary"),
+            _button("재택근무", "remote"),
             _button("외근", "field"),
+        ]},
+        {"type": "context", "elements": [{"type": "mrkdwn",
+            "text": ":house: *재택근무* 를 누르면 재택으로 자동 출근 처리됩니다."}]},
+    ]
+
+
+def checkout_prompt(emp: dict, checkout_hm: str = "") -> list:
+    """예약 퇴근 알림 메시지."""
+    tail = f" _(설정: {checkout_hm} 퇴근)_" if checkout_hm else ""
+    return [
+        {"type": "section", "text": {"type": "mrkdwn",
+            "text": f"{emp['name']}님, 퇴근할 시간입니다. 오늘도 수고하셨어요 :clap:{tail}"}},
+        {"type": "actions", "elements": [
+            _button("퇴근", "checkout", style="primary"),
         ]},
     ]
 
@@ -144,9 +158,9 @@ def settings_modal(config: dict) -> dict:
              "element": {"type": "static_select", "action_id": "v",
                 "options": [
                     {"text": {"type": "plain_text", "text": "일반근무"}, "value": "normal"},
-                    {"text": {"type": "plain_text", "text": "시차출퇴근"}, "value": "flex"},
-                    {"text": {"type": "plain_text", "text": "선택근로"}, "value": "selective"},
-                    {"text": {"type": "plain_text", "text": "탄력근로"}, "value": "elastic"},
+                    {"text": {"type": "plain_text", "text": "시차근무"}, "value": "flex"},
+                    {"text": {"type": "plain_text", "text": "선택적근무"}, "value": "selective"},
+                    {"text": {"type": "plain_text", "text": "탄력근무"}, "value": "elastic"},
                 ]}},
             {"type": "input", "block_id": "checkin", "label": {"type": "plain_text", "text": "출근"},
              "element": {"type": "timepicker", "action_id": "v",

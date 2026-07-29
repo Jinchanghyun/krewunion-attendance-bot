@@ -31,6 +31,7 @@ class Settings:
     DEFAULT_CHECKIN = os.getenv("DEFAULT_CHECKIN", "09:00")
     DEFAULT_CHECKOUT = os.getenv("DEFAULT_CHECKOUT", "18:00")
     REMIND_AFTER_MIN = int(os.getenv("REMIND_AFTER_MIN", "30"))
+    TIMEZONE = os.getenv("TIMEZONE", "Asia/Seoul")   # 예약 알림·근무일 판정 기준 시간대
 
 
 settings = Settings()

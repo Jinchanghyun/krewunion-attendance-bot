@@ -22,14 +22,33 @@ except Exception:  # pragma: no cover
 
 
 # ── 순수 실행 로직 (Cron / Celery 공용) ───────────────
+def _now():
+    """설정 시간대(기본 Asia/Seoul) 기준 현재 시각."""
+    from zoneinfo import ZoneInfo
+    from app.config import settings
+    return datetime.now(ZoneInfo(settings.TIMEZONE))
+
+
 def run_send_due_checkin_prompts(now: datetime | None = None) -> int:
     """지금 출근 시각이 된 직원에게 출근 버튼 메시지 발송. 발송 건수 반환."""
-    now = now or datetime.now()
+    now = now or _now()
     sent = 0
     for emp in repo.employees_due_for_checkin(now):   # 놀금·휴가·기출근·중복 제외
         slack_app.client.chat_postMessage(
             channel=emp["slack_user_id"],
             blocks=views.checkin_prompt(emp, emp.get("checkin", "09:00")))
+        sent += 1
+    return sent
+
+
+def run_send_due_checkout_prompts(now: datetime | None = None) -> int:
+    """지금 퇴근 시각이 된 직원(출근했고 미퇴근)에게 퇴근 버튼 메시지 발송."""
+    now = now or _now()
+    sent = 0
+    for emp in repo.employees_due_for_checkout(now):
+        slack_app.client.chat_postMessage(
+            channel=emp["slack_user_id"],
+            blocks=views.checkout_prompt(emp, emp.get("checkout", "18:00")))
         sent += 1
     return sent
 

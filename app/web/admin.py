@@ -242,5 +242,7 @@ def cron_checkin_scan(authorization: str = Header(default="")):
     expected = os.getenv("CRON_SECRET", settings.JWT_SECRET)
     if authorization != f"Bearer {expected}":
         raise HTTPException(403, "forbidden")
-    from app.scheduler.tasks import run_send_due_checkin_prompts
-    return {"sent": run_send_due_checkin_prompts()}
+    from app.scheduler.tasks import (run_send_due_checkin_prompts,
+                                     run_send_due_checkout_prompts)
+    return {"checkin_sent": run_send_due_checkin_prompts(),
+            "checkout_sent": run_send_due_checkout_prompts()}
