@@ -313,6 +313,9 @@ def _leave_group_of(kind: str) -> str | None:
     for g, (kinds, _) in _DAY_LEAVE_GROUPS.items():
         if kind in kinds:
             return g
+    for g, (kinds, _) in _HOUR_LEAVE_GROUPS.items():
+        if kind in kinds:
+            return g
     return None
 
 
@@ -355,11 +358,13 @@ def leave_balances(employee_id: str) -> list[dict]:
         out.append({"group": g, "label": label, "unit": "일", "granted": granted,
                     "used": used, "remaining": round(granted - used, 2)})
     for g, (_, label) in _HOUR_LEAVE_GROUPS.items():
-        if not (lc.get(g) or {}).get("on", False):
+        conf = lc.get(g) or {}
+        if not conf.get("on", False):
             continue
+        granted = float(conf.get("quota") or 0)
         used_days = round(leave_used_hours(employee_id, g) / 8.0, 2)  # 4시간=0.5일
-        out.append({"group": g, "label": label, "unit": "일",
-                    "used": used_days, "used_only": True})
+        out.append({"group": g, "label": label, "unit": "일", "granted": granted,
+                    "used": used_days, "remaining": round(granted - used_days, 2)})
     return out
 
 

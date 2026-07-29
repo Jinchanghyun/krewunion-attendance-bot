@@ -434,16 +434,16 @@ const NI='style="width:58px;padding:4px 6px;border:1px solid var(--line);border-
 const SI='style="padding:4px 6px;border:1px solid var(--line);border-radius:6px"';
 const LV_TYPES=[
   {key:'annual',name:'연차',fields:['quota'],unit:'일'},
-  {key:'bd',name:'BD',fields:['bd']},
-  {key:'seollal',name:'설날 휴가',fields:['hours']},
-  {key:'chuseok',name:'추석 휴가',fields:['hours']},
+  {key:'bd',name:'BD',fields:['bd','quota'],unit:'일'},
+  {key:'seollal',name:'설날 휴가',fields:['hours','quota'],unit:'일'},
+  {key:'chuseok',name:'추석 휴가',fields:['hours','quota'],unit:'일'},
   {key:'family_care_paid',name:'가족돌봄(유급)',fields:['quota'],unit:'일'},
   {key:'family_care_unpaid',name:'가족돌봄(무급)',fields:['quota'],unit:'일'},
-  {key:'birthday',name:'생일 휴가',fields:['hours']},
+  {key:'birthday',name:'생일 휴가',fields:['hours','quota'],unit:'일'},
   {key:'health',name:'건강휴가',fields:['quota'],unit:'일'},
   {key:'sabbatical',name:'안식휴가',fields:['quota'],unit:'일'},
   {key:'refresh',name:'리프레쉬 휴가',fields:['quota'],unit:'일'},
-  {key:'health_check',name:'건강검진',fields:['hours']},
+  {key:'health_check',name:'건강검진',fields:['hours','quota'],unit:'일'},
 ];
 let LV_CFG={};
 function lvcfgRender(cfg){$('lvcfg-body').innerHTML=LV_TYPES.map(t=>{const c=cfg[t.key]||{};const on=t.key==='annual'?(c.on!==false):!!c.on;let inp='';

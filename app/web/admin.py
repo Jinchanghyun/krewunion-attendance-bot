@@ -239,10 +239,14 @@ async def create_my_leave(req: Request, emp: dict = Depends(require_employee)):
     grp = repo._leave_group_of(kind)
     if grp:
         bals = {b["group"]: b for b in repo.leave_balances(emp["id"])}
-        if grp in bals:
+        if grp in bals and "remaining" in bals[grp]:
             from app.domain.schedule import working_days as _wd
-            if kind in ("half_am", "half_pm"):
+            lc = cfg.get("leave_config") or {}
+            if kind.endswith("_am") or kind.endswith("_pm"):
                 req_days = 0.5
+            elif grp in repo._HOUR_LEAVE_GROUPS:   # 시간형 종일(설날·추석·생일8h·건강검진8h·BD)
+                hrs = lc.get(grp, {}).get("hours", 4 if grp == "bd" else 8)
+                req_days = round(hrs / 8.0, 2)
             elif grp in repo._CALENDAR_DAY_GROUPS:
                 req_days = (end - start).days + 1
             else:
