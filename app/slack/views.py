@@ -96,24 +96,23 @@ def home_view(emp: dict, state: dict) -> dict:
     blocks += group(":memo: *근태 신청*", "/attend leave", [
         _button("연차·근태 신청", "open_leave"),
     ])
-    # 내 정보
-    blocks += group(":bar_chart: *내 정보*", "/attend status · /attend team", [
-        _link_button("내 근무 현황", my_link(emp)),
-        _link_button("근무 설정", settings_link(emp)),
-    ])
+    # 내 정보 — 웹 링크는 모바일 홈탭에서 'URL 버튼'이 안 열리는 이슈가 있어
+    #           탭 가능한 텍스트 링크(<url|라벨>)로 제공(데스크톱·모바일 모두 동작).
+    blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": (
+        ":bar_chart: *내 정보*   `/attend status · /attend team`\n"
+        f"›  <{my_link(emp)}|내 근무 현황 열기>          "
+        f"›  <{settings_link(emp)}|근무 설정 열기>")}})
 
     # 누락 등록 (버튼 없이 명령어만, 다른 항목과 같은 볼드+아이콘 스타일)
     blocks.append({"type": "section", "text": {"type": "mrkdwn",
         "text": ":pencil: *누락 등록*   `/attend miss 2026-08-01 09:00 18:00`"}})
 
     dlink = dashboard_link(emp)
-    if dlink:   # 관리자(hr/sysadmin)에게만
+    if dlink:   # 관리자(hr/sysadmin·창현)에게만 — 텍스트 링크(모바일 호환)
         blocks.append({"type": "divider"})
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": ":gear: *관리자*"}})
-        blocks.append({"type": "actions", "elements": [
-            _link_button("통계", dlink),
-            _link_button("대시보드", dlink, style="primary"),
-        ]})
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": (
+            ":gear: *관리자*\n"
+            f"›  <{dlink}|관리자 대시보드 열기>")}})
     return {"type": "home", "blocks": blocks}
 
 
