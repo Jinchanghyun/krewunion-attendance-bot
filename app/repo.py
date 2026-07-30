@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 
 from app.db import session_scope
-from app.models import (Approval, AttendanceRecord, Employee, LeaveRequest,
+from app.models import (Approval, AttendanceRecord, Company, Employee, LeaveRequest,
                         SlackEvent, SlackReminder, WorkConfig)
 from app.domain import attendance as att_engine
 from app.domain import leave as leave_engine
@@ -775,6 +775,31 @@ def upsert_employee(emp_id: str, slack: str, name: str, dept: str,
                              checkin="09:00", checkout="18:00",
                              break_start="12:00", break_end="13:00",
                              recovery={"mode": "none"}, short_rules=[]))
+
+
+_DEFAULT_COMPANIES = ["카카오", "카카오게임즈", "카카오페이", "카카오모빌리티", "카카오뱅크",
+                      "카카오엔터테인먼트", "KEP", "카카오VX", "디케이테크인", "케이앤웍스", "엑스엘게임즈"]
+
+
+def list_companies() -> list[str]:
+    """소속회사 목록 — 기본 + 추가 등록분 + 실제 사용 중인 값(중복 제거, 순서 유지)."""
+    with session_scope() as s:
+        stored = [c.name for c in s.scalars(select(Company)).all()]
+        used = [e.company for e in s.scalars(select(Employee)).all() if getattr(e, "company", None)]
+    out = []
+    for n in _DEFAULT_COMPANIES + sorted(stored) + used:
+        if n and n not in out:
+            out.append(n)
+    return out
+
+
+def add_company(name: str) -> None:
+    name = (name or "").strip()
+    if not name:
+        return
+    with session_scope() as s:
+        if not s.get(Company, name):
+            s.add(Company(name=name))
 
 
 def update_employee_fields(emp_id: str, dept: str | None = None,

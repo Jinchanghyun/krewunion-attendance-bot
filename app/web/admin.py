@@ -473,6 +473,23 @@ async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
     return {"ok": True, "id": emp_id, "name": name, "display_name": display, "invited": invited}
 
 
+@api.get("/api/companies")
+def list_companies(_: dict = Depends(require_admin)):
+    return {"companies": repo.list_companies()}
+
+
+@api.post("/api/companies")
+async def add_company(req: Request, admin: dict = Depends(require_admin)):
+    if admin.get("role") not in ("hr", "sysadmin"):
+        raise HTTPException(403, "권한이 없습니다.")
+    body = await req.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "법인명을 입력하세요.")
+    repo.add_company(name)
+    return {"ok": True, "companies": repo.list_companies()}
+
+
 @api.post("/api/employees/update")
 async def api_update_member(req: Request, admin: dict = Depends(require_admin)):
     """구성원 부서·이름·표시이름 수정(추가 이후에도 변경 가능)."""

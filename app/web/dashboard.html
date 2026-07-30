@@ -166,6 +166,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
           <select id="add-dept" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <select id="add-pos" style="border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px"></select>
           <button class="chip" style="border-color:var(--brand);color:var(--brand)" onclick="addMember()">＋ 구성원 추가</button>
+          <button class="chip" onclick="addCompany()">＋ 법인 추가</button>
         </div>
         <table><thead><tr><th>이름</th><th>소속회사</th><th>부서</th><th>직책 · 권한</th><th></th></tr></thead><tbody id="role-body"></tbody></table>
         <div id="role-msg" style="font-size:12px;margin-top:10px;min-height:16px;"></div>
@@ -399,7 +400,7 @@ async function reload(){
   renderOverview(o); renderLive(l); renderMiss(l); renderMonthly(mo); renderByEmp(be); renderPending(pe);
   if(demo){ renderRoles(DEMO_EMP, null); renderPerm(DEMO_EMP); }
   else {
-    try{ const emp=await api('/api/employees'); renderRoles(emp.rows, emp.me); renderPerm(emp.rows); }
+    try{ await loadCompanies(); const emp=await api('/api/employees'); renderRoles(emp.rows, emp.me); renderPerm(emp.rows); }
     catch(e){ $('role-body').innerHTML='<tr><td colspan="5" class="empty">권한 관리는 인사담당자·시스템관리자만 볼 수 있습니다</td></tr>'; }
   }
 }
@@ -409,10 +410,19 @@ const DEPTS=['조직부','정책홍보부','재무운영부','대외협력부'];
 const deptOpts=cur=>{const has=DEPTS.includes(cur);
   return `<option value="" ${has?'':'selected'} disabled hidden>부서</option>`+
     DEPTS.map(d=>`<option value="${d}" ${d===cur?'selected':''}>${d}</option>`).join('');};
-const COMPANIES=['카카오','카카오게임즈','카카오페이','카카오모빌리티','카카오뱅크','카카오엔터테인먼트','KEP','카카오VX','디케이테크인','케이앤웍스','엑스엘게임즈'];
+let COMPANIES=['카카오','카카오게임즈','카카오페이','카카오모빌리티','카카오뱅크','카카오엔터테인먼트','KEP','카카오VX','디케이테크인','케이앤웍스','엑스엘게임즈'];
 const companyOpts=cur=>{const has=COMPANIES.includes(cur);
   return `<option value="" ${has?'':'selected'} disabled hidden>소속회사</option>`+
     COMPANIES.map(c=>`<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');};
+function fillAddCompany(sel){const cs=$('add-company');if(!cs)return;const cur=sel||cs.value;
+  cs.innerHTML='<option value="" '+(cur?'':'selected')+' disabled hidden>소속회사</option>'+COMPANIES.map(c=>`<option ${c===cur?'selected':''}>${c}</option>`).join('');}
+async function loadCompanies(){try{const j=await api('/api/companies');if(j.companies&&j.companies.length){COMPANIES=j.companies;fillAddCompany();}}catch(e){}}
+window.addCompany=async()=>{const name=(prompt('추가할 법인(소속회사)명을 입력하세요')||'').trim();if(!name)return;
+  const base=$('api').value.trim(),tok=$('tok').value.trim();
+  try{const r=await fetch(base+'/api/companies',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:JSON.stringify({name})});
+    const j=await r.json();if(!r.ok){toast('추가 실패: '+(j.detail||('HTTP '+r.status)),true);return;}
+    COMPANIES=j.companies;fillAddCompany(name);toast('법인 "'+name+'" 추가됨');reload();
+  }catch(e){toast('오류: '+e,true);}};
 const POS_ROLE={지회장:'sysadmin',수석부지회장:'sysadmin',사무장:'hr',부지회장:'employee','전임 스탭':'employee',조직부장:'employee',정책홍보부장:'employee',재무운영부장:'employee',대외협력부장:'employee'};
 const ROLE_BADGE={sysadmin:['관리자','p-ok'],hr:['관리자(승인)','p-ok'],employee:['일반','p-cx']};
 const DEMO_EMP=[

@@ -98,6 +98,12 @@ class SlackReminder(Base):
     __table_args__ = (UniqueConstraint("employee_id", "date", "kind"),)
 
 
+class Company(Base):
+    """소속회사(법인) 목록 — 관리자가 추가 가능."""
+    __tablename__ = "companies"
+    name: Mapped[str] = mapped_column(String, primary_key=True)
+
+
 class SlackEvent(Base):
     """이벤트 멱등성 가드."""
     __tablename__ = "slack_events"
