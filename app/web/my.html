@@ -68,7 +68,25 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
 .btn-p{background:var(--brand);color:#fff;}.btn-g{background:#fff;border:1px solid var(--line);color:var(--muted);}
 .empty{color:var(--muted);font-size:12px;text-align:center;padding:16px 0;}
 .linkbtn{color:var(--brand);font-size:13px;text-decoration:none;font-weight:600;}
-@media(max-width:640px){.sum{grid-template-columns:repeat(2,1fr)}.cell{min-height:52px}}
+@media(max-width:640px){.sum{grid-template-columns:repeat(2,1fr)}.cell{min-height:56px}}
+@media(max-width:520px){
+  .wrap{padding:12px 9px 56px;}
+  .card{padding:12px 11px;border-radius:12px;}
+  .who h1{font-size:15px;}
+  .dow,.days{gap:2px;}
+  .dow span{font-size:9px;}
+  .cell{min-height:44px;padding:3px 3px;font-size:9px;border-radius:6px;}
+  .cell .dn{font-size:10px;}
+  .badge{font-size:8px;padding:1px 3px;border-radius:4px;margin-top:2px;}
+  .tt{font-size:8px;}
+  .io{font-size:9px;gap:2px;margin-top:2px;flex-wrap:wrap;}
+  .io-l{font-size:8px;padding:0 3px;border-radius:3px;}
+  .sched{font-size:8px;margin-top:1px;}
+  .row3,.row2{grid-template-columns:1fr;}
+  .sum{grid-template-columns:repeat(2,1fr);}
+  .sum .v{font-size:18px;}
+  .mnav .lbl{min-width:80px;}
+}
 </style>
 </head>
 <body>
