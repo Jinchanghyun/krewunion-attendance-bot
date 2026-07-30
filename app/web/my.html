@@ -406,8 +406,6 @@ function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const s
       else{
         const tn={remote:'재택',field:'외근'}[r.type];
         if(tn)inner+=`<div class="badge ${TYPE[r.type][1]}">${tn}</div>`;
-        // 기존(소정) 출퇴근 흐리게 → 그 아래 실제 출퇴근
-        inner+=`<div class="sched">${(CFG&&CFG.checkin)||'09:00'}~${(CFG&&CFG.checkout)||'18:00'}</div>`;
         if(r.checkin)inner+=`<div class="io"><span class="io-l io-in">출근</span> ${r.checkin}</div>`;
         if(r.checkout)inner+=`<div class="io"><span class="io-l io-out">퇴근</span> ${r.checkout}</div>`;
       }
@@ -415,9 +413,6 @@ function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const s
     else if(FULFILLED && date.getDay()>=1 && date.getDay()<=5 && k>=iso(TODAY)){
       inner+=`<div class="badge bg-off" title="소정근로 충족 — 데이오프">데이오프</div>`;}
     else if(isShort(date))inner+=`<div class="badge bg-short">단축</div>`;
-    // 기록·휴가·놀금·데이오프가 없는 평일엔 기본 근무일정(디폴트 출퇴근)을 흐리게 표시
-    if(!rec[k] && !lv[k] && !isNol(date) && date.getDay()>=1 && date.getDay()<=5 && !(FULFILLED && k>=iso(TODAY)))
-      inner+=`<div class="tt" style="color:var(--muted)">${(CFG&&CFG.checkin)||'09:00'}~${(CFG&&CFG.checkout)||'18:00'}</div>`;
     if(iso(date)===iso(TODAY))cls+=' today';
     cells+=`<div class="${cls}" data-d="${k}" style="cursor:pointer">${inner}</div>`;}
   grid.innerHTML=cells;}
