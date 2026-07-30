@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 
+from app.config import now_kst, today_kst
 from app.db import session_scope
 from app.models import (Approval, AttendanceRecord, Company, Employee, LeaveRequest,
                         SlackEvent, SlackReminder, WorkConfig)
@@ -84,7 +85,7 @@ def _today_leave_kind(s, employee_id: str, d: date) -> str | None:
 def today_leave_kind(employee_id: str, d: date | None = None) -> str | None:
     """오늘(또는 지정일) 적용되는 휴가 종류. 없으면 None."""
     with session_scope() as s:
-        return _today_leave_kind(s, employee_id, d or date.today())
+        return _today_leave_kind(s, employee_id, d or today_kst())
 
 
 # 반일(부분 근무 가능) 종류 — 이 외 종일 휴가는 출근 불가
@@ -100,7 +101,7 @@ def is_on_full_leave(employee_id: str, d: date | None = None) -> bool:
 
 
 def today_state(employee_id: str) -> dict:
-    today = date.today()
+    today = today_kst()
     with session_scope() as s:
         lk = _today_leave_kind(s, employee_id, today)
         if lk and not (lk.endswith("_am") or lk.endswith("_pm")):   # 종일 휴가
@@ -950,7 +951,7 @@ def _month_range(month: str) -> tuple[date, date]:
 
 
 def stats_overview(today: date | None = None) -> dict:
-    today = today or date.today()
+    today = today or today_kst()
     with session_scope() as s:
         emps = s.scalars(select(Employee)).all()
         counts = {"work": 0, "remote": 0, "field": 0, "off": 0, "none": 0}
@@ -1020,7 +1021,7 @@ def stats_by_employee(month: str) -> dict:
 
 
 def live_status(status: str | None = None, dept: str | None = None) -> dict:
-    today = date.today()
+    today = today_kst()
     rows = []
     with session_scope() as s:
         for e in _by_position(s.scalars(select(Employee)).all()):

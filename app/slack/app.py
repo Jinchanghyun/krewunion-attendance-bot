@@ -11,7 +11,7 @@ from datetime import datetime
 
 from slack_bolt import App
 
-from app.config import settings
+from app.config import settings, now_kst
 from app import repo
 from app.domain import leave as leave_engine
 from app.slack import views
@@ -63,13 +63,13 @@ def _do_checkin(client, emp, kind):
         client.chat_postMessage(channel=emp["slack_user_id"],
             text=f":palm_tree: 오늘은 *{leave_engine.LEAVE_LABEL.get(lk, '휴가')}*로 등록돼 있어 출근 기록을 할 수 없습니다.")
         return
-    info = repo.record_checkin(emp["id"], kind, datetime.now())
+    info = repo.record_checkin(emp["id"], kind, now_kst())
     client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkin_confirm(info))
     _refresh_home(client, emp)
 
 
 def _do_checkout(client, emp):
-    summary = repo.record_checkout(emp["id"], datetime.now())
+    summary = repo.record_checkout(emp["id"], now_kst())
     if summary:
         client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkout_confirm(summary))
     _refresh_home(client, emp)
@@ -131,7 +131,7 @@ def attend_command(ack, body, client, respond):
         return
     parts = (body.get("text") or "").strip().split()
     sub = parts[0].lower() if parts else "help"
-    now = datetime.now()
+    now = now_kst()
     if sub == "in":
         respond(views.checkin_confirm(repo.record_checkin(emp["id"], "office", now)))
     elif sub == "out":

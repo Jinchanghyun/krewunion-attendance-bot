@@ -35,3 +35,21 @@ class Settings:
 
 
 settings = Settings()
+
+
+# ── 한국시간(KST) 헬퍼 — 서버가 UTC라도 근태 시각은 KST 기준 ──
+from datetime import datetime as _dt, date as _date
+
+
+def now_kst() -> _dt:
+    """현재 시각(Asia/Seoul, tzinfo 없는 naive)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return _dt.now(ZoneInfo(settings.TIMEZONE)).replace(tzinfo=None)
+    except Exception:
+        from datetime import timedelta, timezone
+        return _dt.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=9)
+
+
+def today_kst() -> _date:
+    return now_kst().date()
