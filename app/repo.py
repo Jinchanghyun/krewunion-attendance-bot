@@ -81,19 +81,38 @@ def _today_leave_kind(s, employee_id: str, d: date) -> str | None:
     return lr.kind if lr else None
 
 
+def today_leave_kind(employee_id: str, d: date | None = None) -> str | None:
+    """오늘(또는 지정일) 적용되는 휴가 종류. 없으면 None."""
+    with session_scope() as s:
+        return _today_leave_kind(s, employee_id, d or date.today())
+
+
+# 반일(부분 근무 가능) 종류 — 이 외 종일 휴가는 출근 불가
+_HALF_LEAVE = ("half_am", "half_pm", "_am", "_pm")
+
+
+def is_on_full_leave(employee_id: str, d: date | None = None) -> bool:
+    """오늘 종일 휴가(연차 등)면 True — 반차는 False."""
+    lk = today_leave_kind(employee_id, d)
+    if not lk:
+        return False
+    return not (lk.endswith("_am") or lk.endswith("_pm"))
+
+
 def today_state(employee_id: str) -> dict:
     today = date.today()
     with session_scope() as s:
-        if _today_leave_kind(s, employee_id, today) == "annual":
-            return {"status": "off", "worked": "-"}
+        lk = _today_leave_kind(s, employee_id, today)
+        if lk and not (lk.endswith("_am") or lk.endswith("_pm")):   # 종일 휴가
+            return {"status": "off", "worked": "-", "leave_kind": lk}
         rec = s.scalar(select(AttendanceRecord).where(
             AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == today))
         if not rec or not rec.checked_in_at:
-            return {"status": "none", "worked": "-"}
+            return {"status": "none", "worked": "-", "leave_kind": lk}
         status = _TYPE_TO_STATUS.get(rec.type, "work")
         end = rec.checked_out_at or datetime.now()
         mins = max(0, int((end - rec.checked_in_at).total_seconds() // 60))
-        return {"status": status, "worked": f"{mins // 60}시간 {mins % 60:02d}분"}
+        return {"status": status, "worked": f"{mins // 60}시간 {mins % 60:02d}분", "leave_kind": lk}
 
 
 def record_checkin(employee_id: str, kind: str, at: datetime) -> dict:

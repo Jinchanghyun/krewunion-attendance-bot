@@ -77,19 +77,26 @@ def home_view(emp: dict, state: dict) -> dict:
     blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": head}},
               {"type": "divider"}]
 
-    # 출퇴근
-    blocks += group(":clock9: *출퇴근*", "/attend in · /attend out", [
-        _button("출근", "checkin", style="primary"),
-        _button("퇴근", "checkout"),
-    ])
-    # 재택근무
-    blocks += group(":house: *재택근무*", "/attend remote", [
-        _button("재택근무로 출근", "remote"),
-    ])
-    # 외근
-    blocks += group(":round_pushpin: *외근*", "/attend field", [
-        _button("외근으로 전환", "field"),
-    ])
+    # 종일 휴가면 출퇴근·재택·외근 버튼을 숨기고 안내만 표시(출근 불가)
+    if state.get("status") == "off":
+        from app.domain.leave import LEAVE_LABEL
+        lbl = LEAVE_LABEL.get(state.get("leave_kind"), "휴가")
+        blocks.append({"type": "section", "text": {"type": "mrkdwn",
+            "text": f":palm_tree: *오늘은 {lbl}입니다.* 출근 기록은 필요 없어요. 즐거운 하루 보내세요!"}})
+    else:
+        # 출퇴근
+        blocks += group(":clock9: *출퇴근*", "/attend in · /attend out", [
+            _button("출근", "checkin", style="primary"),
+            _button("퇴근", "checkout"),
+        ])
+        # 재택근무
+        blocks += group(":house: *재택근무*", "/attend remote", [
+            _button("재택근무로 출근", "remote"),
+        ])
+        # 외근
+        blocks += group(":round_pushpin: *외근*", "/attend field", [
+            _button("외근으로 전환", "field"),
+        ])
     blocks.append({"type": "divider"})
 
     # 휴가 신청
