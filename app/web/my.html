@@ -114,20 +114,28 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
     <button onclick="moveMonth(1)">›</button>
   </div>
 
-  <!-- 근태 캘린더 -->
+  <!-- 근무시스템 -->
   <div id="tab-cal">
     <div class="card">
       <div id="wt-panel"></div>
       <div class="sum" id="summary"></div>
-      <div class="dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
-      <div class="days" id="calgrid"></div>
-      <div class="legend">
-        <span class="lg"><span class="sw bg-work"></span>출근</span>
-        <span class="lg"><span class="sw bg-remote"></span>재택</span>
-        <span class="lg"><span class="sw bg-field"></span>외근</span>
-        <span class="lg"><span class="sw bg-off"></span>휴가/반차</span>
-        <span class="lg"><span class="sw" style="background:#dcfce7"></span>놀금</span>
-        <span class="lg"><span class="sw bg-short"></span>단축</span>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <span class="seg" id="calview"><span class="on" data-v="cal">달력형</span><span data-v="list">목록형</span></span>
+      </div>
+      <div id="cal-calendar">
+        <div class="dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+        <div class="days" id="calgrid"></div>
+        <div class="legend">
+          <span class="lg"><span class="sw bg-work"></span>출근</span>
+          <span class="lg"><span class="sw bg-remote"></span>재택</span>
+          <span class="lg"><span class="sw bg-field"></span>외근</span>
+          <span class="lg"><span class="sw bg-off"></span>휴가/반차</span>
+          <span class="lg"><span class="sw" style="background:#dcfce7"></span>놀금</span>
+          <span class="lg"><span class="sw bg-short"></span>단축</span>
+        </div>
+      </div>
+      <div id="cal-list" class="hidden">
+        <table><thead><tr><th>날짜</th><th>구분</th><th>출근</th><th>퇴근</th><th class="num">실근무</th></tr></thead><tbody id="callist-body"></tbody></table>
       </div>
     </div>
   </div>
@@ -287,7 +295,7 @@ async function loadMonth(){
   const m=iso(cur).slice(0,7);
   $('mlabel').textContent=cur.getFullYear()+'년 '+(cur.getMonth()+1)+'월';
   DATA=await api('/api/my/month?month='+m); CFG=DATA.config;
-  renderWorktime(); renderSummary(); renderCalendar($('calgrid')); renderCalendar($('reccalgrid')); renderRecList(); renderSchedule();
+  renderWorktime(); renderSummary(); renderCalendar($('calgrid')); renderCalendar($('reccalgrid')); renderRecList(); renderCalList(); renderSchedule();
 }
 function moveMonth(d){cur=new Date(cur.getFullYear(),cur.getMonth()+d,1);loadMonth();}
 
@@ -335,6 +343,33 @@ window.requestMonthOT=async()=>{const m=iso(cur).slice(0,7);
 function renderSummary(){const s=DATA.summary;$('summary').innerHTML=
   [['실근무',s.worked],['연장',s.overtime],['야간',s.night],['휴일',s.holiday]]
   .map(([l,v])=>`<div class="b"><div class="l">${l}</div><div class="v">${Hh(v)}<span style="font-size:12px;color:var(--muted)">h</span></div></div>`).join('');}
+
+/* 근무시스템 목록형 */
+const DOWK=['일','월','화','수','목','금','토'];
+function renderCalList(){const b=$('callist-body');if(!b)return;const {rec,lv}=maps();
+  const y=cur.getFullYear(),m=cur.getMonth(),dim=new Date(y,m+1,0).getDate();
+  const W=DATA.worktime,FULFILLED=W&&W.work_type==='selective'&&W.scheduled_min>0&&W.actual_min>=W.scheduled_min;
+  let rows='';
+  for(let dd=1;dd<=dim;dd++){const date=new Date(y,m,dd),k=iso(date),wd=date.getDay();
+    let g='',ci='',co='',wk='';
+    if(lv[k]){g=(LV[lv[k]]||['휴가'])[0];}
+    else if(isNol(date)){g='놀금';}
+    else if(rec[k]){const r=rec[k];
+      if(r.type==='dayoff')g='데이오프';
+      else{g={office:'출근',remote:'재택',field:'외근'}[r.type]||'출근';ci=r.checkin||'';co=r.checkout||'';wk=r.work?H(r.work):'';}
+      if(isShort(date))g+=' · 단축';}
+    else if(FULFILLED&&wd>=1&&wd<=5&&k>=iso(TODAY)){g='데이오프';}
+    else if(wd>=1&&wd<=5&&isShort(date)){g='단축';}
+    const wknd=(wd===0||wd===6);
+    rows+=`<tr style="${wknd?'color:#b0b6c0':''}"><td>${dd}일 (${DOWK[wd]})</td><td>${g||'—'}</td><td>${ci||'—'}</td><td>${co||'—'}</td><td class="num">${wk||'—'}</td></tr>`;
+  }
+  b.innerHTML=rows;
+}
+document.getElementById('calview').addEventListener('click',e=>{const s=e.target.closest('span');if(!s)return;
+  document.querySelectorAll('#calview span').forEach(x=>x.classList.remove('on'));s.classList.add('on');
+  const list=s.dataset.v==='list';
+  $('cal-list').classList.toggle('hidden',!list);$('cal-calendar').classList.toggle('hidden',list);
+  if(list)renderCalList();});
 
 /* 달력 날짜 클릭 → 출퇴근 편집 팝업 */
 let editDate=null;
