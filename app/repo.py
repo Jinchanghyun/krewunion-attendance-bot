@@ -291,6 +291,7 @@ _DAY_LEAVE_GROUPS = {
     "health": (["health"], "건강휴가"),
     "sabbatical": (["sabbatical"], "안식휴가"),
     "refresh": (["refresh"], "리프레쉬 휴가"),
+    "special": (["special"], "특별휴가"),
 }
 _HALF_LEAVE_KINDS = {"half_am", "half_pm"}
 # 워킹데이가 아니라 달력 일수(주말 포함)로 세는 그룹 — 안식휴가

@@ -339,7 +339,7 @@ const TYPE={office:['출','bg-work'],remote:['재','bg-remote'],field:['외','bg
 const LV={annual:['연차','bg-off'],half_am:['오전반차','bg-off'],half_pm:['오후반차','bg-off'],
   sabbatical:['안식휴가','bg-off'],family_care:['가족돌봄','bg-off'],family_care_paid:['가족돌봄(유급)','bg-off'],family_care_unpaid:['가족돌봄(무급)','bg-off'],refresh:['리프레쉬','bg-off'],bd:['BD','bg-off'],
   seollal:['설날','bg-off'],chuseok:['추석','bg-off'],health:['건강휴가','bg-off'],
-  health_check_am:['검진(오전)','bg-off'],health_check_pm:['검진(오후)','bg-off'],health_check_full:['건강검진','bg-off'],
+  special:['특별휴가','bg-off'],health_check_am:['검진(오전)','bg-off'],health_check_pm:['검진(오후)','bg-off'],health_check_full:['건강검진','bg-off'],
   birthday_am:['생일(오전)','bg-off'],birthday_pm:['생일(오후)','bg-off'],birthday_full:['생일','bg-off']};
 
 const WTN={normal:'일반근무',flex:'시차근무',selective:'선택적근무',elastic:'탄력근무'};
@@ -515,6 +515,7 @@ const LV_TYPES=[
   {key:'health',name:'건강휴가',fields:['quota'],unit:'일'},
   {key:'sabbatical',name:'안식휴가',fields:['quota'],unit:'일'},
   {key:'refresh',name:'리프레쉬 휴가',fields:['quota'],unit:'일'},
+  {key:'special',name:'특별휴가',fields:['quota'],unit:'일'},
   {key:'health_check',name:'건강검진',fields:['hours','quota'],unit:'일'},
 ];
 let LV_CFG={};
@@ -539,6 +540,7 @@ function buildLeaveOptions(cfg){const on=k=>cfg[k]&&cfg[k].on;const g=[['연차'
   if(on('family_care_paid'))sp.push(['family_care_paid','가족돌봄(유급)']);
   if(on('family_care_unpaid'))sp.push(['family_care_unpaid','가족돌봄(무급)']);
   if(on('refresh'))sp.push(['refresh','리프레쉬 휴가']);
+  if(on('special'))sp.push(['special','특별휴가']);
   if(on('health'))sp.push(['health','건강휴가']);
   if(on('sabbatical'))sp.push(['sabbatical','안식휴가']);
   if(on('health_check')){if((cfg.health_check.hours||8)==8)sp.push(['health_check_full','건강검진 (8h)']);else{sp.push(['health_check_am','건강검진 (오전 4h)']);sp.push(['health_check_pm','건강검진 (오후 4h)']);}}

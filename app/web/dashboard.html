@@ -139,7 +139,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
     <section class="page" id="page-home">
       <div class="card" style="margin-bottom:16px"><b id="home-date" style="font-size:17px"></b></div>
       <div class="g2" style="align-items:stretch">
-        <div class="card" style="min-height:230px;display:flex;flex-direction:column"><h2>오늘의 근무 현황</h2>
+        <div class="card" style="min-height:230px;display:flex;flex-direction:column"><h2 style="display:flex;justify-content:space-between;align-items:center">오늘의 근무 현황 <button onclick="reload()" title="새로고침" style="border:1px solid var(--line);background:#fff;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:500">⟳ 새로고침 <span id="reload-at" style="color:var(--muted);font-weight:400"></span></button></h2>
           <div class="homekpi" style="flex:1">
             <div class="hk"><div class="n" id="k-present" style="color:var(--brand)">—</div><div class="l">출근</div></div>
             <div class="hk"><div class="n" id="k-off" style="color:var(--amber)">—</div><div class="l">휴가</div></div>
@@ -397,6 +397,7 @@ async function reload(){
   $('mode').textContent = demo?'데모 데이터(미연결)':'API 연결됨';
   $('mode').className = demo?'badge-demo':'';
   window._live=l; window._mo=mo;
+  {const ra=$('reload-at');if(ra)ra.textContent='· '+new Date().toTimeString().slice(0,5);}
   renderOverview(o); renderLive(l); renderMiss(l); renderMonthly(mo); renderByEmp(be); renderPending(pe);
   if(demo){ renderRoles(DEMO_EMP, null); renderPerm(DEMO_EMP); }
   else {
@@ -531,6 +532,7 @@ if(_tok){ $('tok').value=_tok; if(!$('api').value) $('api').value=location.origi
   if(_urlTok){ try{ history.replaceState(null,'',location.pathname); }catch(e){} } }
 (function(){const n=new Date();const D=['일','월','화','수','목','금','토'];const s=n.getFullYear()+'년 '+(n.getMonth()+1)+'월 '+n.getDate()+'일 ('+D[n.getDay()]+')';const e=$('home-date');if(e)e.textContent=s;})();
 reload();
+setInterval(()=>{ if($('tok').value.trim()) try{reload();}catch(e){} }, 5*60*1000);  /* 5분마다 자동 새로고침 */
 </script>
 </body>
 </html>

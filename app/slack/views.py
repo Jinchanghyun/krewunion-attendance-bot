@@ -227,6 +227,7 @@ def leave_modal() -> dict:
                     {"label": {"type": "plain_text", "text": "특수 휴가"}, "options": [
                         opt("안식휴가", "sabbatical"),
                         opt("리프레쉬 휴가", "refresh"),
+                        opt("특별휴가", "special"),
                         opt("가족돌봄(유급)", "family_care_paid"),
                         opt("가족돌봄(무급)", "family_care_unpaid"),
                         opt("BD", "bd"),
