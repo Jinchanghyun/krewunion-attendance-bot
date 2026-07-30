@@ -929,7 +929,8 @@ def stats_overview(today: date | None = None) -> dict:
         emps = s.scalars(select(Employee)).all()
         counts = {"work": 0, "remote": 0, "field": 0, "off": 0, "none": 0}
         for e in emps:
-            if _today_leave_kind(s, e.id, today) == "annual":
+            lk = _today_leave_kind(s, e.id, today)
+            if lk and not (lk.endswith("_am") or lk.endswith("_pm")):   # 종일 휴가
                 counts["off"] += 1
                 continue
             rec = s.scalar(select(AttendanceRecord).where(
@@ -946,6 +947,7 @@ def stats_overview(today: date | None = None) -> dict:
         pending_n = len(s.scalars(select(Approval).where(Approval.status == "requested")).all())
         rate = round(present / eligible * 100) if eligible else 0
         return {"attendance_rate": rate, "present": present, "eligible": eligible,
+                "total": len(emps),
                 "remote": counts["remote"], "field": counts["field"],
                 "off": counts["off"], "pending_approvals": pending_n}
 

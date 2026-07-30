@@ -80,9 +80,9 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
 .topbar-r{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);}
 .topbar-r button{border:1px solid var(--brand);background:#fff;color:var(--brand);border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;}
 .page.hidden{display:none;}
-.homekpi{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;}
-.homekpi .hk{text-align:center;min-width:70px;}
-.homekpi .hk .n{font-size:40px;font-weight:800;line-height:1.1;}
+.homekpi{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;align-items:center;}
+.homekpi .hk{text-align:center;min-width:66px;}
+.homekpi .hk .n{font-size:35px;font-weight:800;line-height:1.1;}
 .homekpi .hk .l{font-size:13px;color:var(--muted);margin-top:4px;}
 .perm-grp{margin-bottom:10px;}
 .perm-grp .gt{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:4px;}
@@ -137,21 +137,16 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
 
     <!-- 홈 -->
     <section class="page" id="page-home">
-      <div class="card" style="display:flex;gap:24px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
-        <b id="home-date" style="font-size:17px"></b>
-        <div style="font-size:13px">총 인원 <b id="s-total" style="color:#111827">—</b></div>
-        <div style="font-size:13px">재택 <b id="s-remote" style="color:var(--blue)">—</b></div>
-        <div style="font-size:13px">휴가 <b id="s-off" style="color:var(--amber)">—</b></div>
-        <div style="font-size:13px">승인 대기 <b id="s-appr" style="color:#dc2626">—</b></div>
-      </div>
+      <div class="card" style="margin-bottom:16px"><b id="home-date" style="font-size:17px"></b></div>
       <div class="g2" style="align-items:stretch">
         <div class="card" style="min-height:230px;display:flex;flex-direction:column"><h2>오늘의 근무 현황</h2>
-          <div class="homekpi" style="flex:1;align-items:center">
+          <div class="homekpi" style="flex:1">
             <div class="hk"><div class="n" id="k-present" style="color:var(--brand)">—</div><div class="l">출근</div></div>
             <div class="hk"><div class="n" id="k-off" style="color:var(--amber)">—</div><div class="l">휴가</div></div>
             <div class="hk"><div class="n" id="k-absent" style="color:#dc2626">—</div><div class="l">미출근</div></div>
             <div class="hk"><div class="n" id="k-remote" style="color:var(--blue)">—</div><div class="l">재택</div></div>
             <div class="hk"><div class="n" id="k-field" style="color:#7c3aed">—</div><div class="l">외근</div></div>
+            <div class="hk" style="border-left:1px solid var(--line);padding-left:26px"><div class="n" id="k-appr" style="color:#dc2626">—</div><div class="l">승인 대기</div></div>
           </div>
         </div>
         <div class="card" style="display:flex;flex-direction:column"><h2>출퇴근 누락 <span style="font-weight:400;color:var(--muted);font-size:12px">· 오늘 미출근</span></h2>
@@ -252,12 +247,11 @@ async function api(path){
 const SB={work:['근무중','b-work'],remote:['재택','b-remote'],field:['외근','b-field'],off:['휴가','b-off'],none:['미출근','b-none']};
 
 function renderOverview(o){
-  const present=o.present??0, elig=o.eligible??0;
+  const present=o.present??0, elig=o.eligible??0, total=o.total??elig;
   const set=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
   set('k-present',present); set('k-off',o.off); set('k-absent',Math.max(0,elig-present));
-  set('k-remote',o.remote); set('k-field',o.field); set('tot-emp',elig);
-  set('s-total',elig); set('s-remote',o.remote); set('s-off',o.off);
-  const ap=o.pending_approvals||0; set('s-appr',ap);
+  set('k-remote',o.remote); set('k-field',o.field); set('tot-emp',total);
+  const ap=o.pending_approvals||0; set('k-appr',ap);
   const b=$('req-badge');
   if(b){ b.textContent=ap||''; b.style.display=ap?'inline-block':'none'; }
 }
