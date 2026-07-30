@@ -235,6 +235,9 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
 <style>
   input[type=time],input[type=date],select{accent-color:#F2F2F2;}
   input[type=time]:focus,input[type=date]:focus,input:focus,select:focus{border-color:#cfcfcf!important;box-shadow:0 0 0 3px #F2F2F2!important;}
+  .tp{display:inline-flex;align-items:center;gap:4px;}
+  .tp select{width:auto!important;padding:8px 10px;}
+  .tp-c{color:var(--muted);}
   .io{display:flex;align-items:center;gap:4px;font-size:11px;margin-top:3px;font-variant-numeric:tabular-nums;color:#334155;}
   .io-l{font-size:9px;font-weight:700;color:#fff;padding:1px 5px;border-radius:5px;line-height:1.5;}
   .io-in{background:#4f46e5;} .io-out{background:#64748b;}
@@ -270,6 +273,27 @@ const H=m=>(m?(Math.floor(m/60)+'시간 '+String(m%60).padStart(2,'0')+'분'):'�
 const Hh=m=>(m?(Math.round(m/6)/10):0);
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+
+/* 시간입력을 시(00–23)·분(10분) 커스텀 드롭다운으로 교체 */
+function setTime(id,v){const el=$(id);if(!el)return;
+  if(el._sh){if(!v){el._sh.value='';el._sm.value='';el.value='';return;}const[a,b]=v.split(':');el._sh.value=pad(+a);el._sm.value=pad(Math.round((+b)/10)*10%60);el.value=el._sh.value+':'+el._sm.value;}
+  else el.value=v;}
+function setTPDisabled(id,off){const el=$(id);if(el&&el._sh){el._sh.disabled=off;el._sm.disabled=off;el._sh.parentElement.style.opacity=off?.4:1;}}
+function makeTimePickers(ids,allowEmpty){ids.forEach(id=>{const el=$(id);if(!el||el.tagName!=='INPUT'||el.type!=='time')return;
+  let hh='',mm='';const blank=allowEmpty?'<option value=""></option>':'';
+  for(let h=0;h<24;h++)hh+=`<option>${pad(h)}</option>`;
+  for(let m=0;m<60;m+=10)mm+=`<option>${pad(m)}</option>`;
+  const wrap=document.createElement('span');wrap.className='tp';if(el.style.flex)wrap.style.flex=el.style.flex;
+  const initv=el.value;
+  wrap.innerHTML=`<input type="hidden" id="${id}"><select class="tp-h">${blank}${hh}</select><span class="tp-c">:</span><select class="tp-m">${blank}${mm}</select>`;
+  el.replaceWith(wrap);
+  const hid=wrap.querySelector('input'),sh=wrap.querySelector('.tp-h'),sm=wrap.querySelector('.tp-m');
+  hid._sh=sh;hid._sm=sm;
+  const upd=()=>{hid.value=(sh.value&&sm.value)?sh.value+':'+sm.value:'';hid.dispatchEvent(new Event('change',{bubbles:true}));};
+  sh.addEventListener('change',upd);sm.addEventListener('change',upd);
+  if(initv)setTime(id,initv);else if(!allowEmpty)setTime(id,'09:00');});}
+makeTimePickers(['ot-start','ot-end','ed-in','ed-out']);
+makeTimePickers(['ed-away-from','ed-away-to'],true);
 const TODAY=new Date();
 let cur=new Date(TODAY.getFullYear(),TODAY.getMonth(),1);
 let DATA=null, CFG=null;
@@ -377,12 +401,12 @@ window.closeEdit=()=>{$('edit-modal').style.display='none';};
 function openEditDay(ds){editDate=ds;const {rec}=maps();const r=rec[ds];
   $('edit-title').textContent=ds+' 출퇴근 편집';
   $('ed-kind').value=(r&&r.type)||'office';
-  $('ed-in').value=(r&&r.checkin)||(CFG&&CFG.checkin)||'09:00';
-  $('ed-out').value=(r&&r.checkout)||(CFG&&CFG.checkout)||'18:00';
-  $('ed-away-from').value='';$('ed-away-to').value='';$('ed-msg').textContent='';
+  setTime('ed-in',(r&&r.checkin)||(CFG&&CFG.checkin)||'09:00');
+  setTime('ed-out',(r&&r.checkout)||(CFG&&CFG.checkout)||'18:00');
+  setTime('ed-away-from','');setTime('ed-away-to','');$('ed-msg').textContent='';
   $('edit-modal').style.display='flex';}
 document.getElementById('calgrid').addEventListener('click',e=>{const c=e.target.closest('[data-d]');if(c)openEditDay(c.dataset.d);});
-document.getElementById('ed-kind').addEventListener('change',()=>{const off=$('ed-kind').value==='dayoff';['ed-in','ed-out','ed-away-from','ed-away-to'].forEach(id=>{$(id).disabled=off;$(id).style.opacity=off?.4:1;});});
+document.getElementById('ed-kind').addEventListener('change',()=>{const off=$('ed-kind').value==='dayoff';['ed-in','ed-out','ed-away-from','ed-away-to'].forEach(id=>setTPDisabled(id,off));});
 const _hm=t=>{if(!t)return null;const[a,b]=t.split(':');return (+a)*60+(+b);};
 document.getElementById('ed-save').addEventListener('click',async()=>{const msg=$('ed-msg');
   const ci=$('ed-in').value,co=$('ed-out').value;
