@@ -207,10 +207,57 @@ def checkout_confirm(s: dict) -> str:
             f"저녁시간: {_hm(s['night'])}")
 
 
-def leave_modal() -> dict:
-    """휴가 신청 모달 — 연차·반차 + 특수 휴가(안식·가족돌봄·건강검진·생일 등)."""
+def _leave_option_groups(leave_config: dict | None) -> list:
+    """개인 휴가 관리 설정(leave_config)에서 켠 휴가만 옵션으로 구성."""
     def opt(text, value):
         return {"text": {"type": "plain_text", "text": text}, "value": value}
+    lc = leave_config or {}
+    def on(k):
+        return bool((lc.get(k) or {}).get("on"))
+    groups = []
+    if (lc.get("annual") or {}).get("on", True):
+        groups.append({"label": {"type": "plain_text", "text": "연차"}, "options": [
+            opt("연차 (종일)", "annual"), opt("오전반차 (4시간)", "half_am"),
+            opt("오후반차 (4시간)", "half_pm")]})
+    sp = []
+    if on("bd"):
+        sp.append(opt("BD", "bd"))
+    if on("seollal"):
+        sp.append(opt("설날 휴가", "seollal"))
+    if on("chuseok"):
+        sp.append(opt("추석 휴가", "chuseok"))
+    if on("family_care_paid"):
+        sp.append(opt("가족돌봄(유급)", "family_care_paid"))
+    if on("family_care_unpaid"):
+        sp.append(opt("가족돌봄(무급)", "family_care_unpaid"))
+    if on("refresh"):
+        sp.append(opt("리프레쉬 휴가", "refresh"))
+    if on("special"):
+        sp.append(opt("특별휴가", "special"))
+    if on("health"):
+        sp.append(opt("건강휴가", "health"))
+    if on("sabbatical"):
+        sp.append(opt("안식휴가", "sabbatical"))
+    if on("health_check"):
+        if (lc.get("health_check") or {}).get("hours", 8) == 8:
+            sp.append(opt("건강검진 (8h)", "health_check_full"))
+        else:
+            sp += [opt("건강검진 (오전 4h)", "health_check_am"), opt("건강검진 (오후 4h)", "health_check_pm")]
+    if on("birthday"):
+        if (lc.get("birthday") or {}).get("hours", 8) == 8:
+            sp.append(opt("생일 (8h)", "birthday_full"))
+        else:
+            sp += [opt("생일 (오전 4h)", "birthday_am"), opt("생일 (오후 4h)", "birthday_pm")]
+    if sp:
+        groups.append({"label": {"type": "plain_text", "text": "특수 휴가"}, "options": sp})
+    if not groups:
+        groups.append({"label": {"type": "plain_text", "text": "연차"},
+                       "options": [opt("연차 (종일)", "annual")]})
+    return groups
+
+
+def leave_modal(leave_config: dict | None = None) -> dict:
+    """휴가 신청 모달 — 개인이 켠 휴가 종류만 표시."""
     return {
         "type": "modal", "callback_id": "leave_modal",
         "title": {"type": "plain_text", "text": "휴가 신청"},
@@ -219,26 +266,7 @@ def leave_modal() -> dict:
         "blocks": [
             {"type": "input", "block_id": "kind", "label": {"type": "plain_text", "text": "종류"},
              "element": {"type": "static_select", "action_id": "v",
-                "option_groups": [
-                    {"label": {"type": "plain_text", "text": "연차"}, "options": [
-                        opt("연차 (종일)", "annual"),
-                        opt("오전반차 (4시간)", "half_am"),
-                        opt("오후반차 (4시간)", "half_pm")]},
-                    {"label": {"type": "plain_text", "text": "특수 휴가"}, "options": [
-                        opt("안식휴가", "sabbatical"),
-                        opt("리프레쉬 휴가", "refresh"),
-                        opt("특별휴가", "special"),
-                        opt("가족돌봄(유급)", "family_care_paid"),
-                        opt("가족돌봄(무급)", "family_care_unpaid"),
-                        opt("BD", "bd"),
-                        opt("건강휴가", "health"),
-                        opt("건강검진 (8h)", "health_check_full"),
-                        opt("건강검진 (오전 4h)", "health_check_am"),
-                        opt("건강검진 (오후 4h)", "health_check_pm"),
-                        opt("생일 (8h)", "birthday_full"),
-                        opt("생일 (오전 4h)", "birthday_am"),
-                        opt("생일 (오후 4h)", "birthday_pm")]},
-                ]}},
+                "option_groups": _leave_option_groups(leave_config)}},
             {"type": "input", "block_id": "start", "label": {"type": "plain_text", "text": "시작일"},
              "element": {"type": "datepicker", "action_id": "v"}},
             {"type": "input", "block_id": "end", "optional": True,

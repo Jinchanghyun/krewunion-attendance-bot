@@ -111,10 +111,12 @@ def on_checkout(ack, body, client):
 @app.command("/leave")   # Slack은 한글 슬래시 명령 불가 → /leave (키워드 "연차"는 아래 메시지 핸들러)
 def open_leave_command(ack, body, client, respond):
     ack()  # 슬래시 명령은 trigger_id를 주므로 모달 즉시 오픈
-    if not _resolve(body["user_id"]):
+    emp = _resolve(body["user_id"])
+    if not emp:
         respond(views.UNREGISTERED_MSG)
         return
-    client.views_open(trigger_id=body["trigger_id"], view=views.leave_modal())
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config")))
 
 
 _STATUS_KO = {"work": "근무중", "remote": "재택", "field": "외근", "off": "휴가", "none": "미출근"}
@@ -148,7 +150,8 @@ def attend_command(ack, body, client, respond):
                           for r in rows)
         respond("*팀 현황*\n" + (lines or "표시할 팀원이 없습니다."))
     elif sub in ("leave", "vacation"):
-        client.views_open(trigger_id=body["trigger_id"], view=views.leave_modal())
+        client.views_open(trigger_id=body["trigger_id"],
+                          view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config")))
     elif sub in ("miss", "missout"):
         from datetime import date as _date
         try:
@@ -167,9 +170,11 @@ def attend_command(ack, body, client, respond):
 @app.action("open_leave")            # 홈 탭 '연차 신청' 버튼
 def open_leave_button(ack, body, client):
     ack()
-    if not _resolve(body["user"]["id"]):
+    emp = _resolve(body["user"]["id"])
+    if not emp:
         return
-    client.views_open(trigger_id=body["trigger_id"], view=views.leave_modal())
+    client.views_open(trigger_id=body["trigger_id"],
+                      view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config")))
 
 
 @app.message("연차")                  # 키워드 → 버튼 답장(텍스트만으론 모달 불가)

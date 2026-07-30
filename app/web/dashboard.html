@@ -217,8 +217,9 @@ const $ = id => document.getElementById(id);
 const H = m => (m==null?'—':(Math.floor(m/60)+'.'+Math.round((m%60)/6)));  // 분→시간(소수1)
 let statusFilter = '', chart;
 const MONTH = new Date().toISOString().slice(0,7);
-window.goToMe=()=>{const base=$('api').value.trim()||location.origin; const tok=$('tok').value.trim();
-  if(!tok){alert('먼저 토큰을 입력하고 불러오기 하세요.');return;}
+window.goToMe=()=>{const base=$('api').value.trim()||location.origin;
+  let tok=$('tok').value.trim(); if(!tok){try{tok=sessionStorage.getItem('sam_token')||'';}catch(e){}}
+  if(!tok){alert('세션이 만료되었습니다. Slack 홈에서 대시보드를 다시 열어주세요.');return;}
   location.href=base+'/me?token='+encodeURIComponent(tok);};
 
 const DEMO = {
