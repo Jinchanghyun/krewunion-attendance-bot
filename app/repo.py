@@ -92,20 +92,43 @@ def today_leave_kind(employee_id: str, d: date | None = None) -> str | None:
 _HALF_LEAVE = ("half_am", "half_pm", "_am", "_pm")
 
 
+def _is_recovery(s, employee_id: str, d: date) -> bool:
+    """놀금(리커버리데이) 여부 — 개인 근무설정 기준."""
+    wc = s.get(WorkConfig, employee_id)
+    cfg = _config_dict(wc) if wc else work_config(employee_id)
+    return is_recovery_day(cfg, d)
+
+
+def _off_kind(s, employee_id: str, d: date) -> str | None:
+    """종일 휴가 종류(놀금 포함). 반차는 제외. 없으면 None.
+    놀금도 휴가로 처리하되, 실제 휴가 신청이 있으면 그 종류를 우선 표시."""
+    lk = _today_leave_kind(s, employee_id, d)
+    if lk and not (lk.endswith("_am") or lk.endswith("_pm")):
+        return lk
+    if _is_recovery(s, employee_id, d):
+        return "recovery"
+    return None
+
+
+def today_off_kind(employee_id: str, d: date | None = None) -> str | None:
+    """오늘 종일 휴가/놀금 종류. 없으면 None."""
+    with session_scope() as s:
+        return _off_kind(s, employee_id, d or today_kst())
+
+
 def is_on_full_leave(employee_id: str, d: date | None = None) -> bool:
-    """오늘 종일 휴가(연차 등)면 True — 반차는 False."""
-    lk = today_leave_kind(employee_id, d)
-    if not lk:
-        return False
-    return not (lk.endswith("_am") or lk.endswith("_pm"))
+    """오늘 종일 휴가(연차·놀금 등)면 True — 반차는 False."""
+    with session_scope() as s:
+        return _off_kind(s, employee_id, d or today_kst()) is not None
 
 
 def today_state(employee_id: str) -> dict:
     today = today_kst()
     with session_scope() as s:
-        lk = _today_leave_kind(s, employee_id, today)
-        if lk and not (lk.endswith("_am") or lk.endswith("_pm")):   # 종일 휴가
-            return {"status": "off", "worked": "-", "leave_kind": lk}
+        off = _off_kind(s, employee_id, today)
+        if off:   # 종일 휴가 또는 놀금
+            return {"status": "off", "worked": "-", "leave_kind": off}
+        lk = _today_leave_kind(s, employee_id, today)   # 남은 건 반차뿐
         rec = s.scalar(select(AttendanceRecord).where(
             AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == today))
         if not rec or not rec.checked_in_at:
@@ -956,8 +979,7 @@ def stats_overview(today: date | None = None) -> dict:
         emps = s.scalars(select(Employee)).all()
         counts = {"work": 0, "remote": 0, "field": 0, "off": 0, "none": 0}
         for e in emps:
-            lk = _today_leave_kind(s, e.id, today)
-            if lk and not (lk.endswith("_am") or lk.endswith("_pm")):   # 종일 휴가
+            if _off_kind(s, e.id, today):   # 종일 휴가 또는 놀금
                 counts["off"] += 1
                 continue
             rec = s.scalar(select(AttendanceRecord).where(

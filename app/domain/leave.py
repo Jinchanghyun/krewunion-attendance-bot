@@ -21,6 +21,7 @@ LEAVE_LABEL = {
     "health_check_am": "건강검진(오전 4h)", "health_check_pm": "건강검진(오후 4h)",
     "health_check_full": "건강검진(8h)", "health": "건강휴가",
     "birthday_am": "생일(오전 4h)", "birthday_pm": "생일(오후 4h)", "birthday_full": "생일(8h)",
+    "recovery": "놀금(리커버리데이)",
 }
 
 # 연차 잔여 미차감 특수 휴가

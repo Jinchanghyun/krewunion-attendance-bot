@@ -58,10 +58,10 @@ def _refresh_home(client, emp):
 
 
 def _do_checkin(client, emp, kind):
-    if repo.is_on_full_leave(emp["id"]):   # 연차 등 종일 휴가면 출근 불가
-        lk = repo.today_leave_kind(emp["id"])
+    off = repo.today_off_kind(emp["id"])
+    if off:   # 연차·놀금 등 종일 휴가면 출근 불가
         client.chat_postMessage(channel=emp["slack_user_id"],
-            text=f":palm_tree: 오늘은 *{leave_engine.LEAVE_LABEL.get(lk, '휴가')}*로 등록돼 있어 출근 기록을 할 수 없습니다.")
+            text=f":palm_tree: 오늘은 *{leave_engine.LEAVE_LABEL.get(off, '휴가')}*로 등록돼 있어 출근 기록을 할 수 없습니다.")
         return
     info = repo.record_checkin(emp["id"], kind, now_kst())
     client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkin_confirm(info))
