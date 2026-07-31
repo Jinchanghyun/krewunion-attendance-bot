@@ -333,7 +333,8 @@ def apply_auto_dayoff(employee_id: str, on_date: date | None = None) -> list[str
                       LeaveRequest.employee_id == employee_id,
                       LeaveRequest.start <= last, LeaveRequest.end >= first)).all()]
         summ = _wt.monthly_summary(cfg, records, leaves, yy, mm)
-        if summ["fulfilled_min"] < summ["scheduled_min"] or summ["scheduled_min"] == 0:
+        # 소정 충족은 '실근로시간'만으로 판단(휴가 사용시간은 합산하지 않음)
+        if summ["actual_min"] < summ["scheduled_min"] or summ["scheduled_min"] == 0:
             return []   # 아직 소정 미충족
         by_date = {r.date: r for r in recs}
         newly = []
