@@ -541,7 +541,7 @@ function lvcfgCollect(){const cfg={};LV_TYPES.forEach(t=>{const o={on:$('lc-'+t.
 let CATALOG=[];
 const HE=s=>String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 function renderCustom(){const el=$('lvcfg-custom');if(!el)return;
-  if(!CATALOG.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px 0">공유 휴가가 아직 없습니다. "+ 휴가 추가"로 만들면 모든 구성원이 함께 사용할 수 있어요.</div>';return;}
+  if(!CATALOG.length){el.innerHTML='';return;}
   el.innerHTML=CATALOG.map(c=>{const pc=LV_CFG[c.key]||{};const on=!!pc.on;
     const meta=(c.unit==='hour'?`${c.hours||8}시간`:'일 단위')+(c.deduct?' · 연차차감':'');
     const del=c.can_delete?`<button type="button" class="btn btn-g" style="padding:2px 9px;font-weight:700" title="삭제" onclick="delType('${c.key}')">−</button>`:'';
