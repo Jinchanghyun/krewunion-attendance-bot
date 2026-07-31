@@ -65,6 +65,14 @@ def _do_checkin(client, emp, kind):
         return
     info = repo.record_checkin(emp["id"], kind, now_kst())
     client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkin_confirm(info))
+    # 재택근무는 팀 채널에 공유(하루 1회만) — "OOO님 오늘 재택근무입니다."
+    if kind == "remote" and settings.OFF_ANNOUNCE_CHANNEL:
+        try:
+            if repo.mark_reminder_once(emp["id"], now_kst().date(), "remote_announce"):
+                client.chat_postMessage(channel=settings.OFF_ANNOUNCE_CHANNEL,
+                    text=f":house_with_garden: *{emp['name']}님, 오늘 재택근무입니다.*")
+        except Exception as ex:
+            print("remote announce failed:", ex)
     _refresh_home(client, emp)
 
 

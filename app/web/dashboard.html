@@ -132,6 +132,7 @@ input[type=time]:focus,input[type=date]:focus{border-color:#cfcfcf!important;box
     <div class="topbar">
       <h1 id="page-title">홈</h1>
       <div class="topbar-r">총 인원수 <b id="tot-emp" style="color:#111827">—</b> · <span id="mode"></span>
+        <button onclick="sendOffAnnounce()" title="오늘 휴무자를 집계해 전임자방에 즉시 발송">휴무 안내 발송</button>
         <button onclick="goToMe()">근무일정 관리</button></div>
     </div>
 
@@ -244,6 +245,20 @@ async function api(path){
   const r=await fetch(base+path,{headers: tok?{Authorization:'Bearer '+tok}:{}});
   if(!r.ok) throw new Error('http '+r.status);
   return r.json();
+}
+
+async function sendOffAnnounce(){
+  let tok=$('tok').value.trim(); if(!tok){try{tok=sessionStorage.getItem('sam_token')||'';}catch(e){}}
+  const base=$('api').value.trim();
+  if(!confirm('오늘 휴무자(연차·놀금·데이오프)를 집계해 전임자방에 발송할까요?')) return;
+  try{
+    const r=await fetch(base+'/api/off-announce/test',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok}});
+    if(!r.ok){alert('발송 실패 (http '+r.status+')');return;}
+    const j=await r.json();
+    if(!j.people||!j.people.length){alert('오늘은 휴무자가 없어 발송하지 않았습니다.');return;}
+    const list=j.people.map(p=>'• '+p.name+(p.display_name?(' ('+p.display_name+')'):'')+' — '+p.label).join('\n');
+    alert('발송 완료 ('+j.sent+'명)\n\n'+list);
+  }catch(e){alert('발송 오류: '+e.message);}
 }
 
 const SB={work:['근무중','b-work'],remote:['재택','b-remote'],field:['외근','b-field'],off:['휴가','b-off'],none:['미출근','b-none']};

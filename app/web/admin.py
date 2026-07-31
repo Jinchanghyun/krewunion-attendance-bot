@@ -473,6 +473,16 @@ async def api_add_member(req: Request, admin: dict = Depends(require_admin)):
     return {"ok": True, "id": emp_id, "name": name, "display_name": display, "invited": invited}
 
 
+@api.post("/api/off-announce/test")
+def off_announce_test(_: dict = Depends(require_admin)):
+    """오늘 실제 휴무자(연차·놀금·데이오프)를 집계해 채널에 즉시 발송(테스트)."""
+    from app.scheduler.tasks import run_send_daily_off_announcement
+    people = repo.today_off_people()
+    sent = run_send_daily_off_announcement()   # people 없으면 발송 안 함
+    return {"sent": sent, "channel": settings.OFF_ANNOUNCE_CHANNEL,
+            "people": people}
+
+
 @api.get("/api/companies")
 def list_companies(_: dict = Depends(require_admin)):
     return {"companies": repo.list_companies()}
