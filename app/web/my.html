@@ -211,7 +211,8 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
 
   <!-- 시간외근무 -->
   <div id="tab-ot" class="hidden">
-    <div class="card">
+    <div class="card" id="ot-settle" style="display:none"></div>
+    <div class="card" id="ot-dayform">
       <h2>시간외근무 신청</h2>
       <div class="row3">
         <div class="field"><label class="fl">종류</label><select id="ot-kind"><option value="overtime">연장근무</option><option value="holiday">휴일근무</option></select></div>
@@ -321,7 +322,7 @@ async function loadMonth(){
   const m=iso(cur).slice(0,7);
   $('mlabel').textContent=cur.getFullYear()+'년 '+(cur.getMonth()+1)+'월';
   DATA=await api('/api/my/month?month='+m); CFG=DATA.config;
-  renderWorktime(); renderSummary(); renderCalendar($('calgrid')); renderCalendar($('reccalgrid')); renderRecList(); renderCalList(); renderSchedule();
+  renderWorktime(); renderSummary(); renderCalendar($('calgrid')); renderCalendar($('reccalgrid')); renderRecList(); renderCalList(); renderSchedule(); renderOtSettlement();
 }
 function moveMonth(d){cur=new Date(cur.getFullYear(),cur.getMonth()+d,1);loadMonth();}
 
@@ -364,8 +365,33 @@ function renderWorktime(){const w=DATA.worktime;const el=$('wt-panel');if(!el)re
 }
 window.requestMonthOT=async()=>{const m=iso(cur).slice(0,7);
   try{const r=await api('/api/my/overtime/request-month',{method:'POST',body:JSON.stringify({month:m})});
-    alert(r.hours+'시간 연장근로 승인 요청을 보냈습니다. 사무장 승인 후 반영됩니다.');loadMonth();
+    alert(r.hours+'시간 초과근로 승인 요청을 보냈습니다. 사무장 승인 후 반영됩니다.');await loadMonth();loadOvertime();
   }catch(e){alert('신청 실패: '+e);}};
+
+/* 시간외근무 탭 — 선택적 근무는 월 초과근로 정산 신청 */
+function renderOtSettlement(){
+  const w=DATA&&DATA.worktime, el=$('ot-settle'), form=$('ot-dayform');
+  if(!w||w.work_type!=='selective'){ if(el)el.style.display='none'; if(form)form.style.display='block'; return; }
+  if(form)form.style.display='none';
+  if(!el)return; el.style.display='block';
+  const hh=m=>Hh(m)+'h';
+  const box=(l,v,c)=>`<div style="flex:1;min-width:118px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:11px 13px"><div style="font-size:11px;color:var(--muted)">${l}</div><div style="font-size:17px;font-weight:700;margin-top:3px;${c||''}">${v}</div></div>`;
+  const raw=w.raw_overtime_min||0, pend=w.pending_ot_min||0, appr=w.overtime_min||0;
+  let action;
+  if(w.can_request_ot) action=`<button class="btn btn-p" style="padding:9px 16px" onclick="requestMonthOT()">초과근로 ${hh(pend)} 승인 요청</button>`;
+  else if(w.already_requested) action=`<div style="font-size:13px;color:#b45309">이번 달 초과근로를 이미 신청했습니다. (상태는 아래 신청 내역에서 확인)</div>`;
+  else action=`<div style="font-size:13px;color:var(--muted)">발생한 초과근로가 없어 신청할 수 없습니다.</div>`;
+  el.innerHTML=`<h2>초과근로 정산 신청 <span style="font-weight:400;color:var(--muted);font-size:12px">· 선택적 근무 · ${$('mlabel').textContent}</span></h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px">
+      ${box('월 소정근로시간',hh(w.scheduled_min))}
+      ${box('실근로시간',hh(w.actual_min))}
+      ${box('발생 초과근로',hh(raw),raw?'color:#dc2626':'')}
+      ${box('승인된 초과근로',hh(appr))}
+      ${box('신청 가능(미승인)',hh(pend),pend?'color:#b45309':'')}
+    </div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px">실근로시간이 월 소정근로시간을 초과한 만큼(데이오프 근무 포함)이 초과근로로 발생합니다. 아래 버튼으로 발생분을 정산해 승인 요청하세요. 승인된 시간만 인정됩니다(월 최대 24시간).</div>
+    ${action}`;
+}
 function renderSummary(){const s=DATA.summary;$('summary').innerHTML=
   [['실근무',s.worked],['연장',s.overtime],['야간',s.night],['휴일',s.holiday]]
   .map(([l,v])=>`<div class="b"><div class="l">${l}</div><div class="v">${Hh(v)}<span style="font-size:12px;color:var(--muted)">h</span></div></div>`).join('');}
@@ -468,8 +494,9 @@ async function loadOvertime(){try{const d=await api('/api/my/overtime');const P=
   $('ot-body').innerHTML=d.rows.length?d.rows.map(r=>{const [lb,c]=P[r.status]||['',''];const kn=r.kind==='overtime'?'연장':'휴일';
     const cancel=r.status==='requested'?`<button class="btn btn-g" style="padding:4px 10px" onclick="cancelOt(${r.id})">취소</button>`:'';
     return `<tr><td>${kn}</td><td>${r.detail||''}</td><td><span class="pill ${c}">${lb}</span></td><td>${cancel}</td></tr>`;}).join(''):'<tr><td colspan="4" class="empty">신청 내역이 없습니다</td></tr>';
+  renderOtSettlement();
 }catch(e){$('ot-body').innerHTML='<tr><td colspan="4" class="empty">불러오기 실패</td></tr>';}}
-window.cancelOt=async(id)=>{try{await api('/api/my/overtime/cancel',{method:'POST',body:JSON.stringify({id})});loadOvertime();}catch(e){alert('취소 실패: '+e);}};
+window.cancelOt=async(id)=>{try{await api('/api/my/overtime/cancel',{method:'POST',body:JSON.stringify({id})});await loadMonth();loadOvertime();}catch(e){alert('취소 실패: '+e);}};
 $('ot-submit').addEventListener('click',async()=>{const msg=$('ot-msg');
   const kind=$('ot-kind').value,date=$('ot-date').value,st=$('ot-start').value,en=$('ot-end').value,rs=$('ot-detail').value;
   if(!date){msg.style.color='#dc2626';msg.textContent='일자를 선택하세요.';return;}

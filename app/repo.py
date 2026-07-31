@@ -740,11 +740,20 @@ def my_month(employee_id: str, month: str) -> dict:
     from app.domain import worktime as _wt
     yy, mm = int(month[:4]), int(month[5:7])
     wt = _wt.monthly_summary(cfg, records, leaves, yy, mm, approved_ot_min=approved_ot)
-    # 선택적 근무는 소정 충족 시 남은 날 자동 데이오프 + 초과근무는 사전 승인(시간외근무 탭)
-    # 으로 처리하므로 월초 사후 승인 절차는 두지 않는다.
-    wt["can_request_ot"] = False
-    wt["ot_window_note"] = "초과근무는 시간외근무 탭에서 사전 승인 후 인정됩니다." \
-        if wt["work_type"] in ("selective", "flex") else ""
+    # 선택적 근무: 발생한 초과근로(실근로 - 소정, 데이오프 근무 포함)를 월 단위로 정산해 승인 요청.
+    already = has_month_overtime_request(employee_id, month)
+    wt["already_requested"] = already
+    if wt["work_type"] == "selective":
+        wt["can_request_ot"] = wt["pending_ot_min"] > 0 and not already
+        if already:
+            wt["ot_window_note"] = "이번 달 초과근로를 이미 신청했습니다."
+        elif wt["pending_ot_min"] <= 0:
+            wt["ot_window_note"] = "발생한 초과근로가 없습니다."
+        else:
+            wt["ot_window_note"] = ""
+    else:
+        wt["can_request_ot"] = False
+        wt["ot_window_note"] = ""
     return {"month": month, "records": records, "leaves": leaves,
             "config": cfg, "summary": summary, "worktime": wt}
 
