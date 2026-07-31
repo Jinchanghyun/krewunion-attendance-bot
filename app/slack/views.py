@@ -254,6 +254,11 @@ def _leave_option_groups(leave_config: dict | None) -> list:
             sp += [opt("생일 (오전 4h)", "birthday_am"), opt("생일 (오후 4h)", "birthday_pm")]
     if sp:
         groups.append({"label": {"type": "plain_text", "text": "특수 휴가"}, "options": sp})
+    # 개인 커스텀 휴가(켠 항목만)
+    cust = [opt(c["name"], c["key"]) for c in (lc.get("custom") or [])
+            if isinstance(c, dict) and c.get("on") and c.get("key") and c.get("name")]
+    if cust:
+        groups.append({"label": {"type": "plain_text", "text": "추가 휴가"}, "options": cust})
     if not groups:
         groups.append({"label": {"type": "plain_text", "text": "연차"},
                        "options": [opt("연차 (종일)", "annual")]})

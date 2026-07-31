@@ -216,11 +216,14 @@ def submit_leave(ack, body, view, client):
     start = datetime.fromisoformat(vals["start"]["v"]["selected_date"]).date()
     end_raw = vals.get("end", {}).get("v", {}).get("selected_date")
     end = datetime.fromisoformat(end_raw).date() if end_raw else start
-    if kind in leave_engine.HALF_DAY_KINDS:
-        end = start
-    reason = (vals.get("reason", {}).get("v", {}).get("value") or "").strip()
-
     cfg = repo.work_config(emp["id"])
+    lc = cfg.get("leave_config")
+    # 반차·시간단위 커스텀은 당일만
+    if kind in leave_engine.HALF_DAY_KINDS or \
+       (leave_engine.is_custom(kind) and not leave_engine.is_custom_full_day(kind, lc)):
+        end = start
+
+    reason = (vals.get("reason", {}).get("v", {}).get("value") or "").strip()
     days = leave_engine.deduct_days(cfg, kind, start, end)
     req = repo.create_leave(emp["id"], kind, start, end, days, reason=reason)
 
@@ -231,7 +234,7 @@ def submit_leave(ack, body, view, client):
         print("gcal sync skipped:", e)
     tail = f"{days}일 차감" if days else "잔여 미차감"
     client.chat_postMessage(channel=emp["slack_user_id"],
-        text=f":white_check_mark: {leave_engine.LEAVE_LABEL[kind]} 신청 완료 · {tail}")
+        text=f":white_check_mark: {leave_engine.label_of(kind, lc)} 신청 완료 · {tail}")
 
 
 # ── 근무 설정(간단 항목) ──────────────────────────────

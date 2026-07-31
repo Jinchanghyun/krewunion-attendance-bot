@@ -26,10 +26,22 @@ _SINGLE_DAY = _HALF_KINDS | {"health_check_full", "birthday_full", "seollal",
                              "chuseok", "health", "bd"}
 
 
+def _custom_of(kind: str, leave_config: dict | None) -> dict | None:
+    if not (isinstance(kind, str) and kind.startswith("custom_")):
+        return None
+    for c in (leave_config or {}).get("custom") or []:
+        if isinstance(c, dict) and c.get("key") == kind:
+            return c
+    return None
+
+
 def _leave_minutes_per_day(kind: str, leave_config: dict | None) -> int:
     """휴가 1일당 인정 시간(분)."""
     if kind in _HALF_KINDS:
         return HALF_MIN
+    c = _custom_of(kind, leave_config)
+    if c is not None:
+        return int((c.get("hours") or 8) * 60) if c.get("unit") == "hour" else STD_DAY_MIN
     lc = leave_config or {}
     if kind == "bd":
         return int((lc.get("bd", {}).get("hours", 4)) * 60)
@@ -66,7 +78,9 @@ def leave_used_minutes(config: dict, leaves: list[dict], year: int, month: int) 
         if s > e:
             continue
         per = _leave_minutes_per_day(kind, lc)
-        if kind in _SINGLE_DAY:
+        _cc = _custom_of(kind, lc)
+        single = kind in _SINGLE_DAY or (_cc is not None and _cc.get("unit") == "hour")
+        if single:
             total += per          # 당일 1회
         else:
             cur = s               # annual·sabbatical·family_care → 근무일마다

@@ -202,7 +202,9 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
     <div class="card">
       <h2>휴가 관리 <span style="font-weight:400;color:var(--muted);font-size:12px">· 사용할 휴가를 켜고 당해년도 사용가능 수량을 직접 입력하세요. 켠 항목만 신청 화면에 나옵니다.</span></h2>
       <div id="lvcfg-body"></div>
-      <button class="btn btn-p" id="lvcfg-save" style="margin-top:12px">저장</button>
+      <div id="lvcfg-custom"></div>
+      <button type="button" class="btn btn-g" id="lvcfg-add" style="margin-top:10px">+ 휴가 추가</button>
+      <div style="margin-top:14px"><button class="btn btn-p" id="lvcfg-save">저장</button></div>
       <div id="lvcfg-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
     </div>
   </div>
@@ -490,11 +492,11 @@ async function loadLeave(){try{const d=await api('/api/my/leave');const P={appli
 }catch(e){$('lv-body').innerHTML='<tr><td colspan="5" class="empty">불러오기 실패</td></tr>';}}
 window.cancelLeave=async(id)=>{if(!confirm('이 휴가를 취소할까요?'))return;
   try{await api('/api/my/leave/cancel',{method:'POST',body:JSON.stringify({id})});loadLeave();loadMonth();}catch(e){alert('취소 실패: '+e);}};
-$('lv-kind').addEventListener('change',()=>{const single=SINGLE_LV.includes($('lv-kind').value);$('lv-end').disabled=single;$('lv-endlabel').style.opacity=single?.4:1;if(single)$('lv-end').value=$('lv-start').value;});
-$('lv-start').addEventListener('change',()=>{if(SINGLE_LV.includes($('lv-kind').value))$('lv-end').value=$('lv-start').value;});
+$('lv-kind').addEventListener('change',()=>{const single=isSingleKind($('lv-kind').value);$('lv-end').disabled=single;$('lv-endlabel').style.opacity=single?.4:1;if(single)$('lv-end').value=$('lv-start').value;});
+$('lv-start').addEventListener('change',()=>{if(isSingleKind($('lv-kind').value))$('lv-end').value=$('lv-start').value;});
 $('lv-submit').addEventListener('click',async()=>{const msg=$('lv-msg');
   const kind=$('lv-kind').value,start=$('lv-start').value,reason=$('lv-reason').value.trim();
-  let end=$('lv-end').value; if(SINGLE_LV.includes(kind))end=start;
+  let end=$('lv-end').value; if(isSingleKind(kind))end=start;
   if(!start){msg.style.color='#dc2626';msg.textContent='시작일을 선택하세요.';return;}
   try{const r=await api('/api/my/leave',{method:'POST',body:JSON.stringify({kind,start,end,reason})});
     msg.style.color='var(--green)';msg.textContent=(r.days>0?`${r.days}일 차감 · `:'')+'신청 완료 (즉시 반영)';
@@ -530,8 +532,34 @@ function lvcfgCollect(){const cfg={};LV_TYPES.forEach(t=>{const o={on:$('lc-'+t.
   const q=$('lc-'+t.key+'-quota');if(q)o.quota=parseFloat(q.value)||0;
   const h=$('lc-'+t.key+'-hours');if(h)o.hours=parseInt(h.value)||0;
   const cy=$('lc-'+t.key+'-cycle');if(cy)o.cycle=parseInt(cy.value)||0;
-  const p=$('lc-'+t.key+'-paid');if(p)o.paid=p.value;cfg[t.key]=o;});return cfg;}
-async function loadLeaveConfig(){try{const d=await api('/api/my/leave-config');LV_CFG=d.leave_config||{};lvcfgRender(LV_CFG);renderLeaveDropdown(LV_CFG);}catch(e){$('lvcfg-body').innerHTML='<div class="empty">불러오기 실패</div>';}}
+  const p=$('lc-'+t.key+'-paid');if(p)o.paid=p.value;cfg[t.key]=o;});
+  readCustomDOM();cfg.custom=LC_CUSTOM.filter(c=>(c.name||'').trim());return cfg;}
+
+/* 개인 커스텀 휴가 */
+let LC_CUSTOM=[];
+const HE=s=>String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function readCustomDOM(){LC_CUSTOM=LC_CUSTOM.map((c,i)=>{
+  const on=$('cst-'+i+'-on'),nm=$('cst-'+i+'-name'),un=$('cst-'+i+'-unit'),hr=$('cst-'+i+'-hours'),dd=$('cst-'+i+'-deduct'),qt=$('cst-'+i+'-quota');
+  if(!nm)return c;
+  return {key:c.key,name:nm.value.trim(),unit:un?un.value:'day',hours:hr?parseInt(hr.value)||8:(c.hours||8),
+          deduct:dd?dd.checked:false,on:on?on.checked:true,quota:qt?parseFloat(qt.value)||0:0};});}
+function renderCustom(){const el=$('lvcfg-custom');if(!el)return;
+  el.innerHTML=LC_CUSTOM.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);flex-wrap:wrap">
+    <input type="checkbox" id="cst-${i}-on" ${c.on?'checked':''} style="width:16px;height:16px" title="사용">
+    <input type="text" id="cst-${i}-name" value="${HE(c.name)}" placeholder="휴가 이름" style="min-width:120px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-weight:600">
+    <select id="cst-${i}-unit" onchange="cstUnit(${i})" ${SI}><option value="day" ${c.unit!=='hour'?'selected':''}>일 단위</option><option value="hour" ${c.unit==='hour'?'selected':''}>시간 단위</option></select>
+    <span id="cst-${i}-hrwrap" style="${c.unit==='hour'?'':'display:none'}"><input type="number" min="1" id="cst-${i}-hours" value="${c.hours||8}" ${NI}>시간</span>
+    <label style="font-size:13px;color:var(--muted);display:flex;gap:4px;align-items:center"><input type="checkbox" id="cst-${i}-deduct" ${c.deduct?'checked':''}> 연차 차감</label>
+    <span style="color:var(--muted);font-size:13px">연 <input type="number" min="0" step="0.5" id="cst-${i}-quota" value="${c.quota??''}" placeholder="0" ${NI}> ${c.unit==='hour'?'시간':'일'}</span>
+    <button type="button" class="btn btn-g" style="padding:2px 8px" onclick="delCustom(${i})">삭제</button>
+  </div>`).join('')||'<div style="color:var(--muted);font-size:13px;padding:6px 0">추가한 휴가가 없습니다. "+ 휴가 추가"로 직접 만들 수 있어요.</div>';}
+window.cstUnit=(i)=>{readCustomDOM();renderCustom();};
+window.delCustom=(i)=>{readCustomDOM();LC_CUSTOM.splice(i,1);renderCustom();};
+function addCustom(){readCustomDOM();LC_CUSTOM.push({key:'custom_'+Date.now(),name:'',unit:'day',hours:8,deduct:false,on:true,quota:0});renderCustom();}
+function isSingleKind(k){if(SINGLE_LV.includes(k))return true;const c=(LV_CFG.custom||[]).find(x=>x.key===k);return !!(c&&c.unit==='hour');}
+
+async function loadLeaveConfig(){try{const d=await api('/api/my/leave-config');LV_CFG=d.leave_config||{};LC_CUSTOM=(LV_CFG.custom||[]).map(c=>({key:c.key||('custom_'+Date.now()),name:c.name||'',unit:c.unit||'day',hours:c.hours||8,deduct:!!c.deduct,on:c.on!==false,quota:c.quota||0}));lvcfgRender(LV_CFG);renderCustom();renderLeaveDropdown(LV_CFG);}catch(e){$('lvcfg-body').innerHTML='<div class="empty">불러오기 실패</div>';}}
+$('lvcfg-add').addEventListener('click',addCustom);
 $('lvcfg-save').addEventListener('click',async()=>{const msg=$('lvcfg-msg');try{const cfg=lvcfgCollect();await api('/api/my/leave-config',{method:'POST',body:JSON.stringify({leave_config:cfg})});LV_CFG=cfg;renderLeaveDropdown(cfg);msg.style.color='var(--green)';msg.textContent='저장했습니다. 휴가 신청 목록에 반영됩니다.';}catch(e){msg.style.color='#dc2626';msg.textContent='저장 실패: '+e;}});
 function buildLeaveOptions(cfg){const on=k=>cfg[k]&&cfg[k].on;const g=[['연차',[['annual','연차 (종일)'],['half_am','오전 반차'],['half_pm','오후 반차']]]];const sp=[];
   if(on('bd'))sp.push(['bd','BD'+(cfg.bd.hours?` (${cfg.bd.hours}h/${cfg.bd.cycle||2}주)`:'')]);
@@ -545,7 +573,10 @@ function buildLeaveOptions(cfg){const on=k=>cfg[k]&&cfg[k].on;const g=[['연차'
   if(on('sabbatical'))sp.push(['sabbatical','안식휴가']);
   if(on('health_check')){if((cfg.health_check.hours||8)==8)sp.push(['health_check_full','건강검진 (8h)']);else{sp.push(['health_check_am','건강검진 (오전 4h)']);sp.push(['health_check_pm','건강검진 (오후 4h)']);}}
   if(on('birthday')){if((cfg.birthday.hours||8)==8)sp.push(['birthday_full','생일 (8h)']);else{sp.push(['birthday_am','생일 (오전 4h)']);sp.push(['birthday_pm','생일 (오후 4h)']);}}
-  if(sp.length)g.push(['특수 휴가',sp]);return g;}
+  if(sp.length)g.push(['특수 휴가',sp]);
+  const cust=(cfg.custom||[]).filter(c=>c.on&&(c.name||'').trim()).map(c=>[c.key,c.name+(c.unit==='hour'?` (${c.hours||8}h)`:'')]);
+  if(cust.length)g.push(['추가 휴가',cust]);
+  return g;}
 function renderLeaveDropdown(cfg){const sel=$('lv-kind');if(!sel)return;sel.innerHTML=buildLeaveOptions(cfg).map(([label,opts])=>`<optgroup label="${label}">`+opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')+'</optgroup>').join('');}
 
 /* 탭 전환 */

@@ -100,12 +100,16 @@ def _is_recovery(s, employee_id: str, d: date) -> bool:
 
 
 def _full_leave_kind(s, employee_id: str, d: date) -> str | None:
-    """실제 신청된 '종일' 휴가 종류(연차 등). 반차·놀금 제외. 없으면 None.
+    """실제 신청된 '종일' 휴가 종류(연차 등). 반차·시간단위 커스텀·놀금 제외. 없으면 None.
     → 출근 차단 판정 기준(놀금은 출근 허용이라 여기 포함하지 않음)."""
     lk = _today_leave_kind(s, employee_id, d)
-    if lk and not (lk.endswith("_am") or lk.endswith("_pm")):
-        return lk
-    return None
+    if not lk or lk.endswith("_am") or lk.endswith("_pm"):
+        return None
+    if leave_engine.is_custom(lk):   # 커스텀은 '일 단위'만 종일로 취급
+        wc = s.get(WorkConfig, employee_id)
+        if not leave_engine.is_custom_full_day(lk, (wc.leave_config if wc else None)):
+            return None
+    return lk
 
 
 def today_full_leave_kind(employee_id: str, d: date | None = None) -> str | None:
@@ -139,10 +143,14 @@ def today_off_people(d: date | None = None) -> list[dict]:
                     kind = "recovery"               # 놀금(미출근)
             if not kind:
                 continue
+            lc = None
+            if leave_engine.is_custom(kind):
+                wc = s.get(WorkConfig, e.id)
+                lc = wc.leave_config if wc else None
             out.append({"name": e.name,
                         "display_name": getattr(e, "display_name", None) or "",
                         "kind": kind,
-                        "label": leave_engine.LEAVE_LABEL.get(kind, "휴가")})
+                        "label": leave_engine.label_of(kind, lc)})
     return out
 
 
@@ -401,12 +409,14 @@ def create_leave(employee_id: str, kind: str, start: date, end: date, days: floa
     with session_scope() as s:
         e = s.get(Employee, employee_id)
         e.leave_balance = leave_engine.apply_leave(e.leave_balance, days)
+        wc = s.get(WorkConfig, employee_id)
+        lc = (wc.leave_config if wc else None) or {}
         lr = LeaveRequest(employee_id=employee_id, kind=kind, start=start,
                           end=end, days=days, reason=(reason or None), status="applied")
         s.add(lr)
         s.flush()
         return {"id": lr.id, "employee_id": employee_id, "kind": kind,
-                "kind_label": leave_engine.LEAVE_LABEL[kind], "emp_name": e.name,
+                "kind_label": leave_engine.label_of(kind, lc), "emp_name": e.name,
                 "start": start, "end": end, "days": days,
                 "balance_after": e.leave_balance}
 
@@ -529,13 +539,23 @@ def stats_leave_types(year: int) -> dict:
             "birthday_am", "birthday_pm"}
     agg: dict = {}
     with session_scope() as s:
+        # 커스텀 휴가 메타(전체 구성원 설정에서 수집)
+        cust_meta: dict = {}
+        for wc in s.scalars(select(WorkConfig)).all():
+            for c in ((wc.leave_config or {}).get("custom") or []):
+                if isinstance(c, dict) and c.get("key"):
+                    cust_meta[c["key"]] = c
+        cust_labels = {k: (c.get("name") or k) for k, c in cust_meta.items()}
         rows = s.scalars(select(LeaveRequest).where(
             LeaveRequest.start <= end, LeaveRequest.end >= start)).all()
         for l in rows:
             a = agg.setdefault(l.kind, [0, 0.0])
             a[0] += 1
+            _cm = cust_meta.get(l.kind)
             if l.kind in half:
                 a[1] += 0.5
+            elif _cm is not None and _cm.get("unit") == "hour":
+                a[1] += round((_cm.get("hours") or 8) / 8.0, 2)   # 시간단위 커스텀
             else:
                 cur, e2, d = max(l.start, start), min(l.end, end), 0
                 while cur <= e2:
@@ -543,7 +563,7 @@ def stats_leave_types(year: int) -> dict:
                         d += 1
                     cur += timedelta(days=1)
                 a[1] += d
-    out = [{"kind": k, "label": LEAVE_LABEL.get(k, k), "count": v[0],
+    out = [{"kind": k, "label": LEAVE_LABEL.get(k) or cust_labels.get(k, k), "count": v[0],
             "days": round(v[1], 1)} for k, v in agg.items()]
     out.sort(key=lambda x: -x["days"])
     return {"year": year, "rows": out}
@@ -566,11 +586,13 @@ def all_leave_balances() -> dict:
 def my_leaves(employee_id: str, limit: int = 30) -> list[dict]:
     """본인 연차 신청 내역(최근순)."""
     with session_scope() as s:
+        wc = s.get(WorkConfig, employee_id)
+        lc = (wc.leave_config if wc else None) or {}
         rows = s.scalars(select(LeaveRequest).where(
             LeaveRequest.employee_id == employee_id
         ).order_by(LeaveRequest.start.desc()).limit(limit)).all()
         return [{"id": l.id, "kind": l.kind,
-                 "kind_label": leave_engine.LEAVE_LABEL.get(l.kind, l.kind),
+                 "kind_label": leave_engine.label_of(l.kind, lc),
                  "start": l.start.isoformat(), "end": l.end.isoformat(),
                  "days": l.days, "reason": getattr(l, "reason", None) or "",
                  "status": l.status} for l in rows]
@@ -593,8 +615,10 @@ def get_leave(leave_id: int) -> dict:
     with session_scope() as s:
         lr = s.get(LeaveRequest, leave_id)
         e = s.get(Employee, lr.employee_id)
+        wc = s.get(WorkConfig, lr.employee_id)
+        lc = (wc.leave_config if wc else None) or {}
         return {"id": lr.id, "employee_id": lr.employee_id, "kind": lr.kind,
-                "kind_label": leave_engine.LEAVE_LABEL[lr.kind], "emp_name": e.name,
+                "kind_label": leave_engine.label_of(lr.kind, lc), "emp_name": e.name,
                 "start": lr.start, "end": lr.end}
 
 

@@ -42,6 +42,36 @@ class LeaveError(Exception):
     pass
 
 
+# ── 개인 커스텀 휴가 ────────────────────────────────────
+# leave_config["custom"] = [{"key","name","unit"(day|hour),"hours","deduct","on","quota"}]
+def is_custom(kind: str) -> bool:
+    return isinstance(kind, str) and kind.startswith("custom_")
+
+
+def custom_map(leave_config: dict | None) -> dict:
+    """{key: 정의} — 개인 leave_config의 커스텀 휴가 목록."""
+    lst = (leave_config or {}).get("custom") or []
+    return {c["key"]: c for c in lst if isinstance(c, dict) and c.get("key")}
+
+
+def custom_def(kind: str, leave_config: dict | None) -> dict | None:
+    return custom_map(leave_config).get(kind)
+
+
+def label_of(kind: str, leave_config: dict | None = None) -> str:
+    """표시 라벨. 커스텀이면 개인 설정에서 이름을 찾는다."""
+    if kind in LEAVE_LABEL:
+        return LEAVE_LABEL[kind]
+    c = custom_def(kind, leave_config)
+    return c["name"] if c else kind
+
+
+def is_custom_full_day(kind: str, leave_config: dict | None) -> bool:
+    """커스텀 휴가가 '종일'(일 단위)인지. 시간 단위면 False(반차처럼 부분)."""
+    c = custom_def(kind, leave_config)
+    return bool(c) and c.get("unit", "day") != "hour"
+
+
 def deduct_days(config: dict, kind: str, start: date, end: date | None = None) -> float:
     """연차 잔여에서 차감할 일수. 특수 휴가는 0(별도 부여라 잔여 미차감)."""
     if kind == "annual":
@@ -51,6 +81,14 @@ def deduct_days(config: dict, kind: str, start: date, end: date | None = None) -
         return 0.5
     if kind in SPECIAL_LEAVES:
         return 0.0
+    if is_custom(kind):
+        c = custom_def(kind, config.get("leave_config"))
+        if not c or not c.get("deduct"):
+            return 0.0
+        if c.get("unit", "day") == "hour":
+            return round((c.get("hours") or 8) / 8.0, 2)   # 시간→일 환산
+        end = end or start
+        return round(working_days(config, start, end) * 1.0, 2)
     raise LeaveError(f"알 수 없는 휴가 종류: {kind}")
 
 
@@ -63,4 +101,4 @@ def apply_leave(balance: float, need: float) -> float:
 
 def calendar_summary(kind: str, emp_name: str) -> str:
     """구글 캘린더 이벤트 제목."""
-    return f"{emp_name} · {LEAVE_LABEL[kind]}"
+    return f"{emp_name} · {LEAVE_LABEL.get(kind, kind)}"
