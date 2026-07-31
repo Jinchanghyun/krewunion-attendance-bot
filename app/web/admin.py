@@ -640,6 +640,17 @@ def cron_checkin_scan(authorization: str = Header(default="")):
             "checkout_sent": run_send_due_checkout_prompts()}
 
 
+# ── Cron: 매일 09시(KST) 휴무자 요약 발송 ─────────────
+@api.get("/cron/off-announce")
+def cron_off_announce(authorization: str = Header(default="")):
+    """Vercel Cron이 매일 00:00 UTC(=09:00 KST)에 호출. 그날 휴무자를 채널에 요약 발송."""
+    expected = os.getenv("CRON_SECRET", settings.JWT_SECRET)
+    if authorization != f"Bearer {expected}":
+        raise HTTPException(403, "forbidden")
+    from app.scheduler.tasks import run_send_daily_off_announcement
+    return {"ok": True, "off_count": run_send_daily_off_announcement()}
+
+
 # ── Cron: 연장근로 신청 안내 (시차=다음날 · 선택적=월초) ─
 @api.get("/cron/overtime-notify")
 def cron_overtime_notify(authorization: str = Header(default="")):

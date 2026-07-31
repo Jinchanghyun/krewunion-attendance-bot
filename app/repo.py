@@ -116,6 +116,23 @@ def today_off_kind(employee_id: str, d: date | None = None) -> str | None:
         return _off_kind(s, employee_id, d or today_kst())
 
 
+def today_off_people(d: date | None = None) -> list[dict]:
+    """그날 종일 휴무(연차·놀금 등)인 직원 목록. 반차는 제외.
+    반환: [{name, display_name, kind, label}] — 직책 순 정렬."""
+    d = d or today_kst()
+    out = []
+    with session_scope() as s:
+        for e in _by_position(s.scalars(select(Employee)).all()):
+            kind = _off_kind(s, e.id, d)
+            if not kind:
+                continue
+            out.append({"name": e.name,
+                        "display_name": getattr(e, "display_name", None) or "",
+                        "kind": kind,
+                        "label": leave_engine.LEAVE_LABEL.get(kind, "휴가")})
+    return out
+
+
 def is_on_full_leave(employee_id: str, d: date | None = None) -> bool:
     """오늘 종일 휴가(연차·놀금 등)면 True — 반차는 False."""
     with session_scope() as s:

@@ -53,6 +53,22 @@ def run_send_due_checkout_prompts(now: datetime | None = None) -> int:
     return sent
 
 
+def run_send_daily_off_announcement(now: datetime | None = None) -> int:
+    """그날 휴무자(연차·놀금 등)를 한 채널에 요약 발송. 발송 인원 수 반환.
+    휴무자가 없으면 발송하지 않음(채널 소음 방지)."""
+    from app.config import settings
+    people = repo.today_off_people()
+    if not people:
+        return 0
+    lines = []
+    for p in people:
+        who = f"{p['name']} ({p['display_name']})" if p["display_name"] else p["name"]
+        lines.append(f"• {who}님 — {p['label']}")
+    text = ":palm_tree: *오늘 휴무 안내*\n" + "\n".join(lines)
+    slack_app.client.chat_postMessage(channel=settings.OFF_ANNOUNCE_CHANNEL, text=text)
+    return len(people)
+
+
 def run_sync_leave_calendar(leave_id: int) -> str | None:
     """연차를 구글 캘린더에 종일 이벤트로 등록하고 event_id 저장."""
     if not gcal.enabled():

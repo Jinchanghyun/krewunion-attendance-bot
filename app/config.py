@@ -33,6 +33,9 @@ class Settings:
     REMIND_AFTER_MIN = int(os.getenv("REMIND_AFTER_MIN", "30"))
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Seoul")   # 예약 알림·근무일 판정 기준 시간대
 
+    # 매일 09시 휴무자(연차·놀금 등) 요약을 올릴 채널
+    OFF_ANNOUNCE_CHANNEL = os.getenv("OFF_ANNOUNCE_CHANNEL", "C02TW0F1DK9")  # #스태프-전임자방
+
 
 settings = Settings()
 
