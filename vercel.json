@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     { "path": "/cron/checkin-scan", "schedule": "*/10 * * * *" },
-    { "path": "/cron/overtime-notify", "schedule": "0 9 * * *" },
+    { "path": "/cron/overtime-notify", "schedule": "0 0 * * *" },
     { "path": "/cron/off-announce", "schedule": "0 0 * * *" }
   ]
 }

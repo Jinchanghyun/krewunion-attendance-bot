@@ -58,10 +58,10 @@ def _refresh_home(client, emp):
 
 
 def _do_checkin(client, emp, kind):
-    off = repo.today_off_kind(emp["id"])
-    if off:   # 연차·놀금 등 종일 휴가면 출근 불가
+    fl = repo.today_full_leave_kind(emp["id"])
+    if fl:   # 연차 등 실제 종일 휴가면 출근 불가(놀금은 출근 허용)
         client.chat_postMessage(channel=emp["slack_user_id"],
-            text=f":palm_tree: 오늘은 *{leave_engine.LEAVE_LABEL.get(off, '휴가')}*로 등록돼 있어 출근 기록을 할 수 없습니다.")
+            text=f":palm_tree: 오늘은 *{leave_engine.LEAVE_LABEL.get(fl, '휴가')}*로 등록돼 있어 출근 기록을 할 수 없습니다.")
         return
     info = repo.record_checkin(emp["id"], kind, now_kst())
     client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkin_confirm(info))
@@ -72,6 +72,15 @@ def _do_checkout(client, emp):
     summary = repo.record_checkout(emp["id"], now_kst())
     if summary:
         client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkout_confirm(summary))
+        # 선택근무자가 이 퇴근으로 이번 달 소정근로를 채웠으면 남은 날 자동 데이오프 + 안내
+        try:
+            newly = repo.apply_auto_dayoff(emp["id"])
+            if newly:
+                from app.scheduler.tasks import _dayoff_dm_text
+                client.chat_postMessage(channel=emp["slack_user_id"],
+                                        text=_dayoff_dm_text(emp["name"], newly))
+        except Exception as ex:
+            print("auto-dayoff on checkout failed:", ex)
     _refresh_home(client, emp)
 
 

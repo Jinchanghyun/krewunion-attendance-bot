@@ -69,6 +69,32 @@ def run_send_daily_off_announcement(now: datetime | None = None) -> int:
     return len(people)
 
 
+def _dayoff_dm_text(name: str, days: list[str]) -> str:
+    rng = f"{days[0]} ~ {days[-1]}" if len(days) > 1 else days[0]
+    return (f":beach_with_umbrella: *{name}님, 이번 달 소정근로시간을 모두 채우셨어요!*\n"
+            f"남은 근무일({rng}, {len(days)}일)은 자동으로 *데이오프*로 처리됩니다. "
+            f"출근하지 않으셔도 됩니다. :tada:")
+
+
+def run_apply_auto_dayoffs(now: datetime | None = None) -> int:
+    """선택근무자 중 이번 달 소정근로를 방금 충족한 사람에게 자동 데이오프 처리 + DM.
+    새로 데이오프가 생성된(=처음 충족한) 인원 수 반환."""
+    now = now or _now()
+    d = now.date()
+    triggered = 0
+    for emp in repo.selective_employees():
+        newly = repo.apply_auto_dayoff(emp["id"], d)
+        if not newly:
+            continue
+        try:
+            slack_app.client.chat_postMessage(
+                channel=emp["slack_user_id"], text=_dayoff_dm_text(emp["name"], newly))
+            triggered += 1
+        except Exception as ex:
+            print("auto-dayoff DM failed:", ex)
+    return triggered
+
+
 def run_sync_leave_calendar(leave_id: int) -> str | None:
     """연차를 구글 캘린더에 종일 이벤트로 등록하고 event_id 저장."""
     if not gcal.enabled():

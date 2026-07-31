@@ -635,9 +635,12 @@ def cron_checkin_scan(authorization: str = Header(default="")):
     if authorization != f"Bearer {expected}":
         raise HTTPException(403, "forbidden")
     from app.scheduler.tasks import (run_send_due_checkin_prompts,
-                                     run_send_due_checkout_prompts)
+                                     run_send_due_checkout_prompts,
+                                     run_apply_auto_dayoffs)
+    dayoffs = run_apply_auto_dayoffs()   # 소정 충족자 자동 데이오프 + DM
     return {"checkin_sent": run_send_due_checkin_prompts(),
-            "checkout_sent": run_send_due_checkout_prompts()}
+            "checkout_sent": run_send_due_checkout_prompts(),
+            "auto_dayoffs": dayoffs}
 
 
 # ── Cron: 매일 09시(KST) 휴무자 요약 발송 ─────────────
@@ -657,9 +660,9 @@ def cron_overtime_notify(authorization: str = Header(default="")):
     expected = os.getenv("CRON_SECRET", settings.JWT_SECRET)
     if authorization != f"Bearer {expected}":
         raise HTTPException(403, "forbidden")
-    from datetime import date as _date
+    from app.config import today_kst
     from app.links import make_code
-    today = _date.today()
+    today = today_kst()
     sent = 0
     for n in repo.pending_overtime_notifications(today):
         rkey = f"ot_{n['kind']}_{n['ref']}"

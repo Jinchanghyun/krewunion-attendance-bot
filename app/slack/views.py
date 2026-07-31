@@ -77,13 +77,17 @@ def home_view(emp: dict, state: dict) -> dict:
     blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": head}},
               {"type": "divider"}]
 
-    # 종일 휴가면 출퇴근·재택·외근 버튼을 숨기고 안내만 표시(출근 불가)
-    if state.get("status") == "off":
+    # 실제 종일 휴가(연차 등)면 버튼 숨김. 놀금은 휴무이지만 출근 시 근무 처리 → 버튼 유지
+    _is_recovery = state.get("leave_kind") == "recovery"
+    if state.get("status") == "off" and not _is_recovery:
         from app.domain.leave import LEAVE_LABEL
         lbl = LEAVE_LABEL.get(state.get("leave_kind"), "휴가")
         blocks.append({"type": "section", "text": {"type": "mrkdwn",
             "text": f":palm_tree: *오늘은 {lbl}입니다.* 출근 기록은 필요 없어요. 즐거운 하루 보내세요!"}})
     else:
+        if _is_recovery:
+            blocks.append({"type": "section", "text": {"type": "mrkdwn",
+                "text": ":palm_tree: *오늘은 놀금(리커버리데이)입니다.* 쉬셔도 되고, 근무하시면 아래에서 출근을 눌러주세요."}})
         # 출퇴근
         blocks += group(":clock9: *출퇴근*", "/attend in · /attend out", [
             _button("출근", "checkin", style="primary"),

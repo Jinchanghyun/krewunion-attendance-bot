@@ -99,31 +99,44 @@ def _is_recovery(s, employee_id: str, d: date) -> bool:
     return is_recovery_day(cfg, d)
 
 
-def _off_kind(s, employee_id: str, d: date) -> str | None:
-    """종일 휴가 종류(놀금 포함). 반차는 제외. 없으면 None.
-    놀금도 휴가로 처리하되, 실제 휴가 신청이 있으면 그 종류를 우선 표시."""
+def _full_leave_kind(s, employee_id: str, d: date) -> str | None:
+    """실제 신청된 '종일' 휴가 종류(연차 등). 반차·놀금 제외. 없으면 None.
+    → 출근 차단 판정 기준(놀금은 출근 허용이라 여기 포함하지 않음)."""
     lk = _today_leave_kind(s, employee_id, d)
     if lk and not (lk.endswith("_am") or lk.endswith("_pm")):
         return lk
-    if _is_recovery(s, employee_id, d):
-        return "recovery"
     return None
 
 
-def today_off_kind(employee_id: str, d: date | None = None) -> str | None:
-    """오늘 종일 휴가/놀금 종류. 없으면 None."""
+def today_full_leave_kind(employee_id: str, d: date | None = None) -> str | None:
+    """오늘 종일 휴가(연차 등, 놀금 제외). 출근 차단용. 없으면 None."""
     with session_scope() as s:
-        return _off_kind(s, employee_id, d or today_kst())
+        return _full_leave_kind(s, employee_id, d or today_kst())
+
+
+def _checked_in(s, employee_id: str, d: date) -> bool:
+    rec = s.scalar(select(AttendanceRecord).where(
+        AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == d))
+    return bool(rec and rec.checked_in_at)
 
 
 def today_off_people(d: date | None = None) -> list[dict]:
-    """그날 종일 휴무(연차·놀금 등)인 직원 목록. 반차는 제외.
+    """그날 종일 휴무(연차·놀금 등)인 직원 목록. 반차·이미 출근한 놀금자는 제외.
     반환: [{name, display_name, kind, label}] — 직책 순 정렬."""
     d = d or today_kst()
     out = []
     with session_scope() as s:
         for e in _by_position(s.scalars(select(Employee)).all()):
-            kind = _off_kind(s, e.id, d)
+            kind = _full_leave_kind(s, e.id, d)
+            if not kind:
+                rec = s.scalar(select(AttendanceRecord).where(
+                    AttendanceRecord.employee_id == e.id, AttendanceRecord.date == d))
+                if rec and rec.checked_in_at:
+                    continue                       # 이미 출근 → 휴무 아님
+                if rec and rec.type == "dayoff":
+                    kind = "dayoff"                 # 데이오프
+                elif _is_recovery(s, e.id, d):
+                    kind = "recovery"               # 놀금(미출근)
             if not kind:
                 continue
             out.append({"name": e.name,
@@ -134,26 +147,32 @@ def today_off_people(d: date | None = None) -> list[dict]:
 
 
 def is_on_full_leave(employee_id: str, d: date | None = None) -> bool:
-    """오늘 종일 휴가(연차·놀금 등)면 True — 반차는 False."""
+    """오늘 종일 휴가(연차 등)면 True — 반차·놀금은 False(놀금은 출근 가능)."""
     with session_scope() as s:
-        return _off_kind(s, employee_id, d or today_kst()) is not None
+        return _full_leave_kind(s, employee_id, d or today_kst()) is not None
 
 
 def today_state(employee_id: str) -> dict:
     today = today_kst()
     with session_scope() as s:
-        off = _off_kind(s, employee_id, today)
-        if off:   # 종일 휴가 또는 놀금
-            return {"status": "off", "worked": "-", "leave_kind": off}
-        lk = _today_leave_kind(s, employee_id, today)   # 남은 건 반차뿐
+        fl = _full_leave_kind(s, employee_id, today)
+        if fl:   # 실제 종일 휴가(연차 등) → 출근 불가
+            return {"status": "off", "worked": "-", "leave_kind": fl}
         rec = s.scalar(select(AttendanceRecord).where(
             AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == today))
-        if not rec or not rec.checked_in_at:
-            return {"status": "none", "worked": "-", "leave_kind": lk}
-        status = _TYPE_TO_STATUS.get(rec.type, "work")
-        end = rec.checked_out_at or datetime.now()
-        mins = max(0, int((end - rec.checked_in_at).total_seconds() // 60))
-        return {"status": status, "worked": f"{mins // 60}시간 {mins % 60:02d}분", "leave_kind": lk}
+        if rec and rec.checked_in_at:   # 출근 기록 있으면 근무 처리(놀금이라도)
+            status = _TYPE_TO_STATUS.get(rec.type, "work")
+            end = rec.checked_out_at or now_kst()
+            mins = max(0, int((end - rec.checked_in_at).total_seconds() // 60))
+            return {"status": status,
+                    "worked": f"{mins // 60}시간 {mins % 60:02d}분", "leave_kind": None}
+        if rec and rec.type == "dayoff":   # 자동/수동 데이오프 → 휴무
+            return {"status": "off", "worked": "-", "leave_kind": "dayoff"}
+        # 미출근
+        if _is_recovery(s, employee_id, today):   # 놀금(미출근) → 휴무 표시, 출근은 가능
+            return {"status": "off", "worked": "-", "leave_kind": "recovery"}
+        lk = _today_leave_kind(s, employee_id, today)   # 반차 표시용
+        return {"status": "none", "worked": "-", "leave_kind": lk}
 
 
 def record_checkin(employee_id: str, kind: str, at: datetime) -> dict:
@@ -213,8 +232,8 @@ def employees_due_for_checkin(now: datetime) -> list[dict]:
                 continue
             already = s.scalar(select(AttendanceRecord).where(
                 AttendanceRecord.employee_id == e.id, AttendanceRecord.date == today))
-            if already and already.checked_in_at:
-                continue
+            if already and (already.checked_in_at or already.type == "dayoff"):
+                continue   # 이미 출근했거나 데이오프면 출근 알림 안 보냄
             reminded = s.scalar(select(SlackReminder).where(
                 SlackReminder.employee_id == e.id, SlackReminder.date == today,
                 SlackReminder.kind == "checkin"))
@@ -275,6 +294,73 @@ def set_dayoff(employee_id: str, d: date) -> None:
         rec.overtime_minutes = 0
         rec.night_minutes = 0
         rec.holiday_minutes = 0
+
+
+def _set_dayoff_row(s, employee_id: str, d: date) -> None:
+    """세션 내부용 데이오프 마킹."""
+    rec = s.scalar(select(AttendanceRecord).where(
+        AttendanceRecord.employee_id == employee_id, AttendanceRecord.date == d))
+    if not rec:
+        rec = AttendanceRecord(employee_id=employee_id, date=d)
+        s.add(rec)
+    rec.type = "dayoff"
+    rec.checked_in_at = rec.checked_out_at = None
+    rec.work_minutes = rec.overtime_minutes = rec.night_minutes = rec.holiday_minutes = 0
+
+
+def apply_auto_dayoff(employee_id: str, on_date: date | None = None) -> list[str]:
+    """선택근무자가 이번 달 소정근로를 충족(실근로+휴가 ≥ 소정)했으면,
+    그날 포함 이후 남은 근무일을 자동 데이오프로 표시한다.
+    새로 데이오프 처리된 날짜(ISO) 목록 반환 — 비어 있으면 변화 없음(=DM 불필요)."""
+    from calendar import monthrange
+    from app.domain import worktime as _wt
+    from app.domain.schedule import FRI
+    on_date = on_date or today_kst()
+    yy, mm = on_date.year, on_date.month
+    first = date(yy, mm, 1)
+    last = date(yy, mm, monthrange(yy, mm)[1])
+    with session_scope() as s:
+        wc = s.get(WorkConfig, employee_id)
+        cfg = _config_dict(wc) if wc else work_config(employee_id)
+        if cfg.get("work_type") != "selective":
+            return []
+        recs = s.scalars(select(AttendanceRecord).where(
+            AttendanceRecord.employee_id == employee_id,
+            AttendanceRecord.date >= first, AttendanceRecord.date <= last)).all()
+        records = [{"work": r.work_minutes or 0, "date": r.date.isoformat()} for r in recs]
+        leaves = [{"kind": l.kind, "start": l.start.isoformat(), "end": l.end.isoformat()}
+                  for l in s.scalars(select(LeaveRequest).where(
+                      LeaveRequest.employee_id == employee_id,
+                      LeaveRequest.start <= last, LeaveRequest.end >= first)).all()]
+        summ = _wt.monthly_summary(cfg, records, leaves, yy, mm)
+        if summ["fulfilled_min"] < summ["scheduled_min"] or summ["scheduled_min"] == 0:
+            return []   # 아직 소정 미충족
+        by_date = {r.date: r for r in recs}
+        newly = []
+        for day in range(on_date.day, last.day + 1):
+            d = date(yy, mm, day)
+            if d.weekday() > FRI or is_recovery_day(cfg, d):
+                continue                                  # 주말·놀금 제외
+            if _today_leave_kind(s, employee_id, d):
+                continue                                  # 이미 휴가
+            r = by_date.get(d)
+            if r and (r.checked_in_at or r.type == "dayoff"):
+                continue                                  # 이미 근무했거나 데이오프
+            _set_dayoff_row(s, employee_id, d)
+            newly.append(d.isoformat())
+        return newly
+
+
+def selective_employees() -> list[dict]:
+    """선택근무자 목록(자동 데이오프 대상). [{id, slack_user_id, name}]"""
+    with session_scope() as s:
+        out = []
+        for e in s.scalars(select(Employee)).all():
+            c = s.get(WorkConfig, e.id)
+            wt = c.work_type if c else "normal"
+            if wt == "selective":
+                out.append({"id": e.id, "slack_user_id": e.slack_user_id, "name": e.name})
+        return out
 
 
 def team_status() -> list[dict]:
@@ -996,7 +1082,7 @@ def stats_overview(today: date | None = None) -> dict:
         emps = s.scalars(select(Employee)).all()
         counts = {"work": 0, "remote": 0, "field": 0, "off": 0, "none": 0}
         for e in emps:
-            if _off_kind(s, e.id, today):   # 종일 휴가 또는 놀금
+            if _full_leave_kind(s, e.id, today):   # 실제 종일 휴가(연차 등)
                 counts["off"] += 1
                 continue
             rec = s.scalar(select(AttendanceRecord).where(
@@ -1005,6 +1091,10 @@ def stats_overview(today: date | None = None) -> dict:
                 counts[_TYPE_TO_STATUS.get(rec.type, "work")] += 1
             elif rec and rec.checked_out_at:
                 counts["work"] += 1
+            elif rec and rec.type == "dayoff":   # 데이오프 → 휴무
+                counts["off"] += 1
+            elif _is_recovery(s, e.id, today):   # 놀금 미출근 → 휴무
+                counts["off"] += 1
             else:
                 counts["none"] += 1
         present = counts["work"] + counts["remote"] + counts["field"]
