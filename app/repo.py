@@ -247,6 +247,8 @@ def record_checkin(employee_id: str, kind: str, at: datetime) -> dict:
         if not rec:
             rec = AttendanceRecord(employee_id=employee_id, date=today)
             s.add(rec)
+        if rec.type == "dayoff":            # 데이오프에 출근 → 근무 전부 초과근로로 집계
+            rec.is_dayoff_work = True
         rec.type = kind
         if not rec.checked_in_at:
             rec.checked_in_at = at
@@ -267,7 +269,9 @@ def record_checkout(employee_id: str, at: datetime) -> dict | None:
         c = s.get(WorkConfig, employee_id)
         cfg = _config_dict(c) if c else work_config(employee_id)
         leave_kind = _today_leave_kind(s, employee_id, today)
-        summary = att_engine.summarize_day(cfg, today, rec.checked_in_at, at, leave_kind=leave_kind)
+        summary = att_engine.summarize_day(cfg, today, rec.checked_in_at, at,
+                                           leave_kind=leave_kind,
+                                           on_dayoff=bool(getattr(rec, "is_dayoff_work", False)))
         rec.work_minutes = summary["worked"]
         rec.overtime_minutes = summary["overtime"]
         rec.night_minutes = summary["night"]
@@ -323,18 +327,25 @@ def record_manual(employee_id: str, d: date, checkin_hm: str,
         if not rec:
             rec = AttendanceRecord(employee_id=employee_id, date=d)
             s.add(rec)
+        if rec.type == "dayoff":            # 데이오프에 근무 기록 → 초과근로 처리
+            rec.is_dayoff_work = True
         rec.type = kind
         rec.checked_in_at = ci
+        on_dayoff = bool(getattr(rec, "is_dayoff_work", False))
         if co:
             rec.checked_out_at = co
             c = s.get(WorkConfig, employee_id)
             cfg = _config_dict(c) if c else work_config(employee_id)
             summary = att_engine.summarize_day(cfg, d, ci, co,
-                                               leave_kind=_today_leave_kind(s, employee_id, d))
+                                               leave_kind=_today_leave_kind(s, employee_id, d),
+                                               on_dayoff=on_dayoff)
             worked = max(0, summary["worked"] - away_min)   # 자리비움 차감
             rec.work_minutes = worked
             rec.night_minutes = summary["night"]
-            if summary["holiday"]:
+            if on_dayoff:                    # 데이오프 근무: 전부 초과근로
+                rec.holiday_minutes = 0
+                rec.overtime_minutes = worked
+            elif summary["holiday"]:
                 rec.holiday_minutes = worked
                 rec.overtime_minutes = 0
             else:
@@ -357,6 +368,7 @@ def set_dayoff(employee_id: str, d: date) -> None:
         rec.overtime_minutes = 0
         rec.night_minutes = 0
         rec.holiday_minutes = 0
+        rec.is_dayoff_work = False
 
 
 def _set_dayoff_row(s, employee_id: str, d: date) -> None:
@@ -369,6 +381,7 @@ def _set_dayoff_row(s, employee_id: str, d: date) -> None:
     rec.type = "dayoff"
     rec.checked_in_at = rec.checked_out_at = None
     rec.work_minutes = rec.overtime_minutes = rec.night_minutes = rec.holiday_minutes = 0
+    rec.is_dayoff_work = False
 
 
 def apply_auto_dayoff(employee_id: str, on_date: date | None = None) -> list[str]:

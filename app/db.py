@@ -54,6 +54,7 @@ def _ensure_columns() -> None:
         "ALTER TABLE employees ADD COLUMN IF NOT EXISTS company VARCHAR",
         "ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS reason VARCHAR",
         "ALTER TABLE work_configs ADD COLUMN IF NOT EXISTS leave_config JSONB DEFAULT '{}'::jsonb",
+        "ALTER TABLE attendance_records ADD COLUMN IF NOT EXISTS is_dayoff_work BOOLEAN DEFAULT false",
     ]
     for st in stmts:
         try:

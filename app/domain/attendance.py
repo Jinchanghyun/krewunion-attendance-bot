@@ -34,14 +34,16 @@ def summarize_day(
     checkout: datetime | None,
     leave_kind: str | None = None,
     is_company_holiday: bool = False,
+    on_dayoff: bool = False,
 ) -> dict:
-    """하루 근태 요약. 반환 단위는 분."""
+    """하루 근태 요약. 반환 단위는 분.
+    on_dayoff=True: 데이오프(소정 근무일 아님)에 근무 → 소정 0, 근무시간 전부가 초과근로."""
     w = effective_window(config, d, leave_kind)
-    scheduled = w["scheduled_minutes"]
+    scheduled = 0 if on_dayoff else w["scheduled_minutes"]
 
     if checkin is None or checkout is None:
         return {"scheduled": scheduled, "worked": 0, "overtime": 0,
-                "night": 0, "holiday": 0, "note": w["note"]}
+                "night": 0, "holiday": 0, "note": ("데이오프 근무" if on_dayoff else w["note"])}
 
     break_min = 0
     if config.get("break_start") and config.get("break_end") and leave_kind not in ("half_am", "half_pm"):
@@ -50,12 +52,17 @@ def summarize_day(
     worked = worked_minutes(checkin, checkout, break_min)
     # 휴일근로: 일요일(6)·공휴일·놀금만. 토요일(5)은 '무급 휴무'이지 휴일근로가 아님.
     is_holiday = is_company_holiday or d.weekday() == 6 or is_recovery_day(config, d)
-    holiday = worked if is_holiday else 0
-    overtime = 0 if is_holiday else max(0, worked - scheduled)
+    if on_dayoff:
+        # 데이오프 근무: 소정근로일이 아니므로 전부 초과근로로 집계
+        holiday = 0
+        overtime = worked
+    else:
+        holiday = worked if is_holiday else 0
+        overtime = 0 if is_holiday else max(0, worked - scheduled)
     night = night_minutes(checkin, checkout)
 
     return {"scheduled": scheduled, "worked": worked, "overtime": overtime,
-            "night": night, "holiday": holiday, "note": w["note"]}
+            "night": night, "holiday": holiday, "note": ("데이오프 근무" if on_dayoff else w["note"])}
 
 
 def summarize_period(daily: list[dict]) -> dict:

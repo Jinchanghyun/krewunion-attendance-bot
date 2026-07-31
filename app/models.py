@@ -57,6 +57,8 @@ class AttendanceRecord(Base):
     overtime_minutes: Mapped[int] = mapped_column(Integer, default=0)
     night_minutes: Mapped[int] = mapped_column(Integer, default=0)
     holiday_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    # 데이오프(쉬는 날)에 출근한 근무 → 근무시간 전부 초과근로로 집계
+    is_dayoff_work: Mapped[bool] = mapped_column(Boolean, default=False)
     __table_args__ = (UniqueConstraint("employee_id", "date"),)
 
 
