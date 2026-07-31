@@ -12,7 +12,7 @@ from sqlalchemy import select
 from app.config import now_kst, today_kst
 from app.db import session_scope
 from app.models import (Approval, AttendanceRecord, Company, Employee, LeaveRequest,
-                        SlackEvent, SlackReminder, WorkConfig)
+                        LeaveType, SlackEvent, SlackReminder, WorkConfig)
 from app.domain import attendance as att_engine
 from app.domain import leave as leave_engine
 from app.domain.schedule import prompt_times, is_recovery_day
@@ -74,6 +74,64 @@ def save_work_config(employee_id: str, patch: dict) -> None:
         c.updated_at = datetime.utcnow()
 
 
+# ── 공유 휴가 카탈로그(누구나 추가, 정의는 전체 공유) ──────
+def _catalog_list() -> list[dict]:
+    """전역 커스텀 휴가 정의 목록."""
+    with session_scope() as s:
+        return [{"key": t.key, "name": t.name, "unit": t.unit, "hours": t.hours,
+                 "deduct": bool(t.deduct)}
+                for t in s.scalars(select(LeaveType).order_by(LeaveType.created_at)).all()]
+
+
+def leave_config_with_catalog(person_lc: dict | None) -> dict:
+    """개인 leave_config(on/quota)에 전역 커스텀 정의를 얹은 dict(도메인 함수용)."""
+    lc = dict(person_lc or {})
+    lc["custom"] = _catalog_list()
+    return lc
+
+
+def list_leave_types(requester_id: str | None = None) -> list[dict]:
+    """카탈로그 목록 + 요청자가 삭제 가능한지(can_delete) 표시."""
+    with session_scope() as s:
+        admin = False
+        if requester_id:
+            e = s.get(Employee, requester_id)
+            admin = bool(e and e.role in ("hr", "sysadmin"))
+        out = []
+        for t in s.scalars(select(LeaveType).order_by(LeaveType.created_at)).all():
+            out.append({"key": t.key, "name": t.name, "unit": t.unit, "hours": t.hours,
+                        "deduct": bool(t.deduct), "created_by": t.created_by,
+                        "can_delete": bool(requester_id and (t.created_by == requester_id or admin))})
+        return out
+
+
+def add_leave_type(name: str, unit: str = "day", hours: int = 8,
+                   deduct: bool = False, created_by: str | None = None) -> dict:
+    import time
+    key = "custom_" + str(int(time.time() * 1000))
+    unit = unit if unit in ("day", "hour") else "day"
+    with session_scope() as s:
+        s.add(LeaveType(key=key, name=name.strip(), unit=unit,
+                        hours=int(hours or 8), deduct=bool(deduct), created_by=created_by))
+    return {"key": key, "name": name.strip(), "unit": unit,
+            "hours": int(hours or 8), "deduct": bool(deduct)}
+
+
+def delete_leave_type(key: str, requester_id: str | None = None) -> bool:
+    """생성자 또는 관리자만 삭제 가능(카탈로그에서 제거 → 전체에서 사라짐)."""
+    with session_scope() as s:
+        t = s.get(LeaveType, key)
+        if not t:
+            return False
+        if requester_id:
+            e = s.get(Employee, requester_id)
+            admin = bool(e and e.role in ("hr", "sysadmin"))
+            if not (t.created_by == requester_id or admin):
+                return False
+        s.delete(t)
+        return True
+
+
 # ── 출퇴근 ────────────────────────────────────────────
 def _today_leave_kind(s, employee_id: str, d: date) -> str | None:
     lr = s.scalar(select(LeaveRequest).where(
@@ -105,9 +163,9 @@ def _full_leave_kind(s, employee_id: str, d: date) -> str | None:
     lk = _today_leave_kind(s, employee_id, d)
     if not lk or lk.endswith("_am") or lk.endswith("_pm"):
         return None
-    if leave_engine.is_custom(lk):   # 커스텀은 '일 단위'만 종일로 취급
-        wc = s.get(WorkConfig, employee_id)
-        if not leave_engine.is_custom_full_day(lk, (wc.leave_config if wc else None)):
+    if leave_engine.is_custom(lk):   # 커스텀은 '일 단위'만 종일로 취급(전역 카탈로그 기준)
+        t = s.get(LeaveType, lk)
+        if not t or t.unit == "hour":
             return None
     return lk
 
@@ -129,6 +187,7 @@ def today_off_people(d: date | None = None) -> list[dict]:
     반환: [{name, display_name, kind, label}] — 직책 순 정렬."""
     d = d or today_kst()
     out = []
+    cat_lc = {"custom": _catalog_list()}
     with session_scope() as s:
         for e in _by_position(s.scalars(select(Employee)).all()):
             kind = _full_leave_kind(s, e.id, d)
@@ -143,14 +202,10 @@ def today_off_people(d: date | None = None) -> list[dict]:
                     kind = "recovery"               # 놀금(미출근)
             if not kind:
                 continue
-            lc = None
-            if leave_engine.is_custom(kind):
-                wc = s.get(WorkConfig, e.id)
-                lc = wc.leave_config if wc else None
             out.append({"name": e.name,
                         "display_name": getattr(e, "display_name", None) or "",
                         "kind": kind,
-                        "label": leave_engine.label_of(kind, lc)})
+                        "label": leave_engine.label_of(kind, cat_lc)})
     return out
 
 
@@ -409,14 +464,14 @@ def create_leave(employee_id: str, kind: str, start: date, end: date, days: floa
     with session_scope() as s:
         e = s.get(Employee, employee_id)
         e.leave_balance = leave_engine.apply_leave(e.leave_balance, days)
-        wc = s.get(WorkConfig, employee_id)
-        lc = (wc.leave_config if wc else None) or {}
+        t = s.get(LeaveType, kind) if leave_engine.is_custom(kind) else None
+        label = t.name if t else leave_engine.LEAVE_LABEL.get(kind, kind)
         lr = LeaveRequest(employee_id=employee_id, kind=kind, start=start,
                           end=end, days=days, reason=(reason or None), status="applied")
         s.add(lr)
         s.flush()
         return {"id": lr.id, "employee_id": employee_id, "kind": kind,
-                "kind_label": leave_engine.label_of(kind, lc), "emp_name": e.name,
+                "kind_label": label, "emp_name": e.name,
                 "start": start, "end": end, "days": days,
                 "balance_after": e.leave_balance}
 
@@ -539,12 +594,9 @@ def stats_leave_types(year: int) -> dict:
             "birthday_am", "birthday_pm"}
     agg: dict = {}
     with session_scope() as s:
-        # 커스텀 휴가 메타(전체 구성원 설정에서 수집)
-        cust_meta: dict = {}
-        for wc in s.scalars(select(WorkConfig)).all():
-            for c in ((wc.leave_config or {}).get("custom") or []):
-                if isinstance(c, dict) and c.get("key"):
-                    cust_meta[c["key"]] = c
+        # 커스텀 휴가 메타(전역 카탈로그)
+        cust_meta = {t.key: {"name": t.name, "unit": t.unit, "hours": t.hours}
+                     for t in s.scalars(select(LeaveType)).all()}
         cust_labels = {k: (c.get("name") or k) for k, c in cust_meta.items()}
         rows = s.scalars(select(LeaveRequest).where(
             LeaveRequest.start <= end, LeaveRequest.end >= start)).all()
@@ -585,14 +637,13 @@ def all_leave_balances() -> dict:
 
 def my_leaves(employee_id: str, limit: int = 30) -> list[dict]:
     """본인 연차 신청 내역(최근순)."""
+    cat_lc = {"custom": _catalog_list()}
     with session_scope() as s:
-        wc = s.get(WorkConfig, employee_id)
-        lc = (wc.leave_config if wc else None) or {}
         rows = s.scalars(select(LeaveRequest).where(
             LeaveRequest.employee_id == employee_id
         ).order_by(LeaveRequest.start.desc()).limit(limit)).all()
         return [{"id": l.id, "kind": l.kind,
-                 "kind_label": leave_engine.label_of(l.kind, lc),
+                 "kind_label": leave_engine.label_of(l.kind, cat_lc),
                  "start": l.start.isoformat(), "end": l.end.isoformat(),
                  "days": l.days, "reason": getattr(l, "reason", None) or "",
                  "status": l.status} for l in rows]
@@ -615,10 +666,10 @@ def get_leave(leave_id: int) -> dict:
     with session_scope() as s:
         lr = s.get(LeaveRequest, leave_id)
         e = s.get(Employee, lr.employee_id)
-        wc = s.get(WorkConfig, lr.employee_id)
-        lc = (wc.leave_config if wc else None) or {}
+        t = s.get(LeaveType, lr.kind) if leave_engine.is_custom(lr.kind) else None
+        label = t.name if t else leave_engine.LEAVE_LABEL.get(lr.kind, lr.kind)
         return {"id": lr.id, "employee_id": lr.employee_id, "kind": lr.kind,
-                "kind_label": leave_engine.label_of(lr.kind, lc), "emp_name": e.name,
+                "kind_label": label, "emp_name": e.name,
                 "start": lr.start, "end": lr.end}
 
 
@@ -649,6 +700,7 @@ def my_month(employee_id: str, month: str) -> dict:
                       LeaveRequest.start <= end, LeaveRequest.end >= start)).all()]
         c = s.get(WorkConfig, employee_id)
         cfg = _config_dict(c) if c else work_config(employee_id)
+        cfg.setdefault("leave_config", {})["custom"] = _catalog_list()   # 커스텀 휴가 시간 계산용
         # 승인된 연장근로(분) — 연장근로는 승인분만 인정
         approved_ot = 0
         for a in s.scalars(select(Approval).where(
@@ -1150,6 +1202,7 @@ def stats_by_employee(month: str) -> dict:
     from app.domain import worktime as _wt
     start, end = _month_range(month)
     yy, mm = int(month[:4]), int(month[5:7])
+    _cat = _catalog_list()
     rows = []
     with session_scope() as s:
         for e in _by_position(s.scalars(select(Employee)).all()):
@@ -1162,6 +1215,7 @@ def stats_by_employee(month: str) -> dict:
                           LeaveRequest.start <= end, LeaveRequest.end >= start)).all()]
             wc = s.get(WorkConfig, e.id)
             cfg = _config_dict(wc) if wc else work_config(e.id)
+            cfg.setdefault("leave_config", {})["custom"] = _cat
             leave_min = _wt.leave_used_minutes(cfg, leaves, yy, mm)
             rows.append({"employee_id": e.id, "name": e.name,
                          "display_name": getattr(e, "display_name", None) or "",

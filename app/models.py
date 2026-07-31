@@ -104,6 +104,18 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String, primary_key=True)
 
 
+class LeaveType(Base):
+    """공유 커스텀 휴가 카탈로그 — 누구나 추가, 정의는 전체 공유(개인은 on/quota만 설정)."""
+    __tablename__ = "leave_types"
+    key: Mapped[str] = mapped_column(String, primary_key=True)     # custom_<ts>
+    name: Mapped[str] = mapped_column(String)
+    unit: Mapped[str] = mapped_column(String, default="day")        # day|hour
+    hours: Mapped[int] = mapped_column(Integer, default=8)
+    deduct: Mapped[bool] = mapped_column(Boolean, default=False)    # 연차 차감 여부
+    created_by: Mapped[str | None] = mapped_column(String, nullable=True)  # 생성자 emp id
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class SlackEvent(Base):
     """이벤트 멱등성 가드."""
     __tablename__ = "slack_events"

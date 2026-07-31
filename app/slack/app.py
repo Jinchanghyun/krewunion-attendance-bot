@@ -133,7 +133,7 @@ def open_leave_command(ack, body, client, respond):
         respond(views.UNREGISTERED_MSG)
         return
     client.views_open(trigger_id=body["trigger_id"],
-                      view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config")))
+                      view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config"), repo.list_leave_types()))
 
 
 _STATUS_KO = {"work": "근무중", "remote": "재택", "field": "외근", "off": "휴가", "none": "미출근"}
@@ -168,7 +168,7 @@ def attend_command(ack, body, client, respond):
         respond("*팀 현황*\n" + (lines or "표시할 팀원이 없습니다."))
     elif sub in ("leave", "vacation"):
         client.views_open(trigger_id=body["trigger_id"],
-                          view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config")))
+                          view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config"), repo.list_leave_types()))
     elif sub in ("miss", "missout"):
         from datetime import date as _date
         try:
@@ -191,7 +191,7 @@ def open_leave_button(ack, body, client):
     if not emp:
         return
     client.views_open(trigger_id=body["trigger_id"],
-                      view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config")))
+                      view=views.leave_modal(repo.work_config(emp["id"]).get("leave_config"), repo.list_leave_types()))
 
 
 @app.message("연차")                  # 키워드 → 버튼 답장(텍스트만으론 모달 불가)
@@ -217,7 +217,8 @@ def submit_leave(ack, body, view, client):
     end_raw = vals.get("end", {}).get("v", {}).get("selected_date")
     end = datetime.fromisoformat(end_raw).date() if end_raw else start
     cfg = repo.work_config(emp["id"])
-    lc = cfg.get("leave_config")
+    cfg["leave_config"] = repo.leave_config_with_catalog(cfg.get("leave_config"))
+    lc = cfg["leave_config"]
     # 반차·시간단위 커스텀은 당일만
     if kind in leave_engine.HALF_DAY_KINDS or \
        (leave_engine.is_custom(kind) and not leave_engine.is_custom_full_day(kind, lc)):

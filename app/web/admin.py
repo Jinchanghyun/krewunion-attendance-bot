@@ -290,6 +290,34 @@ async def save_my_leave_config(req: Request, emp: dict = Depends(require_employe
     return {"ok": True}
 
 
+# ── 공유 휴가 카탈로그(누구나 추가/각자 사용) ──────────
+@api.get("/api/leave-types")
+def api_leave_types(emp: dict = Depends(require_employee)):
+    return {"types": repo.list_leave_types(emp["id"])}
+
+
+@api.post("/api/leave-types")
+async def api_add_leave_type(req: Request, emp: dict = Depends(require_employee)):
+    body = await req.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "휴가 이름을 입력하세요.")
+    unit = body.get("unit") if body.get("unit") in ("day", "hour") else "day"
+    hours = int(body.get("hours") or 8)
+    deduct = bool(body.get("deduct"))
+    t = repo.add_leave_type(name, unit, hours, deduct, created_by=emp["id"])
+    return {"ok": True, "type": t, "types": repo.list_leave_types(emp["id"])}
+
+
+@api.post("/api/leave-types/delete")
+async def api_del_leave_type(req: Request, emp: dict = Depends(require_employee)):
+    body = await req.json()
+    key = (body.get("key") or "").strip()
+    if not repo.delete_leave_type(key, requester_id=emp["id"]):
+        raise HTTPException(403, "삭제 권한이 없거나 존재하지 않는 항목입니다.")
+    return {"ok": True, "types": repo.list_leave_types(emp["id"])}
+
+
 @api.get("/setup")
 def setup(key: str = ""):
     """일회성 초기 설정 — DB 테이블 생성 + 샘플 데이터 + 관리자 토큰 발급.

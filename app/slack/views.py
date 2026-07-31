@@ -211,8 +211,9 @@ def checkout_confirm(s: dict) -> str:
             f"저녁시간: {_hm(s['night'])}")
 
 
-def _leave_option_groups(leave_config: dict | None) -> list:
-    """개인 휴가 관리 설정(leave_config)에서 켠 휴가만 옵션으로 구성."""
+def _leave_option_groups(leave_config: dict | None, custom_types: list | None = None) -> list:
+    """개인 휴가 관리 설정(leave_config)에서 켠 휴가만 옵션으로 구성.
+    custom_types: 전역 공유 커스텀 휴가 카탈로그([{key,name,unit,...}])."""
     def opt(text, value):
         return {"text": {"type": "plain_text", "text": text}, "value": value}
     lc = leave_config or {}
@@ -254,9 +255,9 @@ def _leave_option_groups(leave_config: dict | None) -> list:
             sp += [opt("생일 (오전 4h)", "birthday_am"), opt("생일 (오후 4h)", "birthday_pm")]
     if sp:
         groups.append({"label": {"type": "plain_text", "text": "특수 휴가"}, "options": sp})
-    # 개인 커스텀 휴가(켠 항목만)
-    cust = [opt(c["name"], c["key"]) for c in (lc.get("custom") or [])
-            if isinstance(c, dict) and c.get("on") and c.get("key") and c.get("name")]
+    # 공유 커스텀 휴가(개인이 켠 항목만)
+    cust = [opt(c["name"], c["key"]) for c in (custom_types or [])
+            if c.get("key") and c.get("name") and (lc.get(c["key"]) or {}).get("on")]
     if cust:
         groups.append({"label": {"type": "plain_text", "text": "추가 휴가"}, "options": cust})
     if not groups:
@@ -265,7 +266,7 @@ def _leave_option_groups(leave_config: dict | None) -> list:
     return groups
 
 
-def leave_modal(leave_config: dict | None = None) -> dict:
+def leave_modal(leave_config: dict | None = None, custom_types: list | None = None) -> dict:
     """휴가 신청 모달 — 개인이 켠 휴가 종류만 표시."""
     return {
         "type": "modal", "callback_id": "leave_modal",
@@ -275,7 +276,7 @@ def leave_modal(leave_config: dict | None = None) -> dict:
         "blocks": [
             {"type": "input", "block_id": "kind", "label": {"type": "plain_text", "text": "종류"},
              "element": {"type": "static_select", "action_id": "v",
-                "option_groups": _leave_option_groups(leave_config)}},
+                "option_groups": _leave_option_groups(leave_config, custom_types)}},
             {"type": "input", "block_id": "start", "label": {"type": "plain_text", "text": "시작일"},
              "element": {"type": "datepicker", "action_id": "v"}},
             {"type": "input", "block_id": "end", "optional": True,
