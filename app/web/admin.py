@@ -294,6 +294,33 @@ async def save_my_leave_config(req: Request, emp: dict = Depends(require_employe
     return {"ok": True}
 
 
+# ── 공휴일 조회(달력 표시용) ──────────────────────────
+@api.get("/api/holidays")
+def api_holidays(months: str = "", _: dict = Depends(require_employee)):
+    """월별 공휴일 {ISO: 이름}. months=YYYY-MM,YYYY-MM (미지정 시 이번 달+다음 달)."""
+    from datetime import date as _date
+    from calendar import monthrange
+    from app.config import today_kst
+    from app.domain.holidays import public_holiday_name
+    keys = [m.strip() for m in months.split(",") if m.strip()]
+    if not keys:
+        t = today_kst()
+        ny, nm = (t.year + 1, 1) if t.month == 12 else (t.year, t.month + 1)
+        keys = [f"{t.year:04d}-{t.month:02d}", f"{ny:04d}-{nm:02d}"]
+    out = {}
+    for k in keys:
+        try:
+            y, mm = int(k[:4]), int(k[5:7])
+        except Exception:
+            continue
+        for day in range(1, monthrange(y, mm)[1] + 1):
+            dd = _date(y, mm, day)
+            nm2 = public_holiday_name(dd)
+            if nm2:
+                out[dd.isoformat()] = nm2
+    return {"holidays": out}
+
+
 # ── 공유 휴가 카탈로그(누구나 추가/각자 사용) ──────────
 @api.get("/api/leave-types")
 def api_leave_types(emp: dict = Depends(require_employee)):

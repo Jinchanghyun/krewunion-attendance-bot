@@ -66,6 +66,8 @@ select:focus,input:focus{box-shadow:0 0 0 3px #F2F2F2!important;border-color:#cf
 .day{aspect-ratio:1;display:grid;place-items:center;font-size:11px;border-radius:7px;color:var(--ink);}
 .day.mut{color:#cbd0d8;}.day.off{background:var(--green-soft);color:#166534;font-weight:700;}
 .day.short{background:var(--amber-soft);color:#92400e;font-weight:700;}.day.today{outline:2px solid var(--brand);outline-offset:-2px;}
+.day.hol{background:#fee2e2;color:#b91c1c;font-weight:700;}
+.day.sun{color:#dc2626;}.day.sat{color:#2563eb;}
 .legend{display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--muted);flex-wrap:wrap;}
 .lg{display:inline-flex;align-items:center;gap:5px;}.sw{width:11px;height:11px;border-radius:3px;}
 .savebar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 40%);padding-top:16px;margin-top:4px;display:flex;gap:10px;align-items:center;}
@@ -173,7 +175,7 @@ select:focus,input:focus{box-shadow:0 0 0 3px #F2F2F2!important;border-color:#cf
       <div class="cal">
         <h2>휴무·단축 미리보기</h2>
         <div id="months"></div>
-        <div class="legend"><span class="lg"><span class="sw" style="background:var(--green-soft)"></span> 놀금(휴무)</span><span class="lg"><span class="sw" style="background:var(--amber-soft)"></span> 단축근무</span></div>
+        <div class="legend"><span class="lg"><span class="sw" style="background:var(--green-soft)"></span> 놀금(휴무)</span><span class="lg"><span class="sw" style="background:var(--amber-soft)"></span> 단축근무</span><span class="lg"><span class="sw" style="background:#fee2e2"></span> 공휴일</span></div>
       </div>
     </div>
   </div>
@@ -232,6 +234,7 @@ async function load(){
     $('who').textContent = d.employee.name+' · '+d.employee.dept;
     applyConfig(d.config);
     $('app').classList.remove('hidden');
+    loadHolidays();
   }catch(e){ showErr('오류: '+e); }
 }
 function showErr(m){ const e=$('err'); e.style.display='block'; e.textContent=m; }
@@ -321,12 +324,24 @@ function ruleMatches(r,d){if(r.repeat==='dates')return (r.dates||[]).includes(is
   const t=iso(d);if(r.start&&t<r.start)return false;if(r.end&&t>r.end)return false;const wd=d.getDay();if(wd<1||wd>5)return false;
   if(r.repeat==='weekly')return (r.weekdays||[]).includes(wd);return true;}
 function shortOn(d){return state.short_on?state.short_rules.filter(r=>ruleMatches(r,d)):[];}
+let HOLI={};
 function monthGrid(y,m){const first=new Date(y,m,1),start=first.getDay(),dim=new Date(y,m+1,0).getDate();let cells='';
   for(let i=0;i<start;i++)cells+='<div class="day mut"></div>';
-  for(let dd=1;dd<=dim;dd++){const date=new Date(y,m,dd);let cls='day';if(isRecoveryDay(date))cls+=' off';else if(shortOn(date).length)cls+=' short';if(iso(date)===iso(TODAY))cls+=' today';cells+=`<div class="${cls}">${dd}</div>`;}
+  for(let dd=1;dd<=dim;dd++){const date=new Date(y,m,dd),k=iso(date),wd=date.getDay();let cls='day',t='';
+    if(HOLI[k]){cls+=' hol';t=` title="${HOLI[k]}"`;}
+    else if(isRecoveryDay(date))cls+=' off';
+    else if(shortOn(date).length)cls+=' short';
+    else if(wd===0)cls+=' sun';
+    else if(wd===6)cls+=' sat';
+    if(k===iso(TODAY))cls+=' today';
+    cells+=`<div class="${cls}"${t}>${dd}</div>`;}
   const name=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'][m];
   return `<div class="mon"><div class="mt">${y}년 ${name}</div><div class="dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div><div class="days">${cells}</div></div>`;}
 function render(){const y=TODAY.getFullYear(),m=TODAY.getMonth();const nx=new Date(y,m+1,1);$('months').innerHTML=monthGrid(y,m)+monthGrid(nx.getFullYear(),nx.getMonth());}
+async function loadHolidays(){try{const y=TODAY.getFullYear(),m=TODAY.getMonth();const nx=new Date(y,m+1,1);
+  const ms=`${y}-${String(m+1).padStart(2,'0')},${nx.getFullYear()}-${String(nx.getMonth()+1).padStart(2,'0')}`;
+  const r=await fetch(API+'/api/holidays?months='+ms,{headers:{Authorization:'Bearer '+TOKEN}});
+  if(r.ok){HOLI=(await r.json()).holidays||{};render();}}catch(e){}}
 
 /* ── 저장 ── */
 function buildConfig(){return {work_type:state.work_type, checkin:state.checkin, checkout:state.checkout,
