@@ -152,6 +152,10 @@ async def edit_my_attendance(req: Request, emp: dict = Depends(require_employee)
     checkin = (body.get("checkin") or "").strip()
     if not checkin:
         raise HTTPException(400, "출근 시간을 입력하세요.")
+    # 휴일(일요일·공휴일) 근무는 승인이 있어야 근무시간 입력 가능
+    from app.domain.holidays import needs_work_approval
+    if needs_work_approval(d) and not repo.has_approved_holiday_work(emp["id"], d):
+        raise HTTPException(400, "휴일 근무는 ‘시간외근무’ 탭에서 휴일근무 승인을 받은 뒤에 입력할 수 있습니다.")
     checkout = (body.get("checkout") or "").strip() or None
     if kind not in ("office", "remote", "field"):
         kind = "office"

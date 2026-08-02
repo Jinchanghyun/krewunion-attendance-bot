@@ -63,6 +63,16 @@ def _do_checkin(client, emp, kind):
         client.chat_postMessage(channel=emp["slack_user_id"],
             text=f":palm_tree: 오늘은 *{leave_engine.LEAVE_LABEL.get(fl, '휴가')}*로 등록돼 있어 출근 기록을 할 수 없습니다.")
         return
+    from app.domain.holidays import needs_work_approval
+    _today = now_kst().date()
+    if needs_work_approval(_today) and not repo.has_approved_holiday_work(emp["id"], _today):
+        client.chat_postMessage(channel=emp["slack_user_id"],
+            text=(":no_entry: *휴일근무 미승인 상태입니다.*\n"
+                  "오늘은 휴일이라 승인 없이는 출근을 기록할 수 없습니다. "
+                  "‘시간외근무’ 탭에서 *휴일근무 승인*을 받은 뒤 기록해 주세요.\n"
+                  "• 사전 승인: 승인 후 이 *출근* 버튼으로 바로 기록\n"
+                  "• 사후 승인: 승인 후 웹 ‘출퇴근 기록’에서 근무시간 입력"))
+        return
     info = repo.record_checkin(emp["id"], kind, now_kst())
     client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkin_confirm(info))
     # 재택근무는 팀 채널에 공유(하루 1회만) — "OOO님 오늘 재택근무입니다."

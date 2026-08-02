@@ -92,6 +92,15 @@ def home_view(emp: dict, state: dict) -> dict:
         elif _lk == "dayoff":
             blocks.append({"type": "section", "text": {"type": "mrkdwn",
                 "text": ":beach_with_umbrella: *오늘은 데이오프입니다.* 쉬셔도 되고, 근무해야 하면 아래에서 출근을 눌러주세요. _(데이오프 근무는 휴일근로로, 인정받으려면 ‘시간외근무’ 탭에서 승인 요청이 필요합니다.)_"}})
+        else:
+            # 휴일(일요일·공휴일) 안내 — 버튼은 유지, 승인 시에만 기록됨
+            from app.config import now_kst
+            from app.domain.holidays import public_holiday_name
+            _td = now_kst().date()
+            _hn = public_holiday_name(_td) or ("일요일" if _td.weekday() == 6 else None)
+            if _hn:
+                blocks.append({"type": "section", "text": {"type": "mrkdwn",
+                    "text": f":no_entry: *오늘은 {_hn}(휴일)입니다.* 휴일근무는 ‘시간외근무’ 탭에서 *휴일근무 승인*을 받은 경우에만 출근이 기록됩니다."}})
         # 출퇴근
         blocks += group(":clock9: *출퇴근*", "/attend in · /attend out", [
             _button("출근", "checkin", style="primary"),

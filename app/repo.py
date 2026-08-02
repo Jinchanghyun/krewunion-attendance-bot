@@ -879,6 +879,18 @@ def pending_overtime_notifications(today: date) -> list[dict]:
     return out
 
 
+def has_approved_holiday_work(employee_id: str, d: date) -> bool:
+    """그 날짜에 '승인된' 휴일근무 신청이 있으면 True (사전·사후 승인 공통)."""
+    iso = d.isoformat()
+    with session_scope() as s:
+        for a in s.scalars(select(Approval).where(
+                Approval.employee_id == employee_id,
+                Approval.kind == "holiday", Approval.status == "approved")).all():
+            if (a.payload or {}).get("date") == iso:
+                return True
+        return False
+
+
 def has_month_overtime_request(employee_id: str, month: str) -> bool:
     """해당 월 연장근로가 이미 신청/승인됐는지."""
     with session_scope() as s:

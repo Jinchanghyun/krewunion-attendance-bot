@@ -80,3 +80,9 @@ def public_holiday_name(d: date) -> str | None:
 def is_day_off(d: date) -> bool:
     """근무일이 아닌 날 = 주말(토·일) 또는 공휴일."""
     return d.weekday() >= 5 or is_public_holiday(d)
+
+
+def needs_work_approval(d: date) -> bool:
+    """휴일(일요일·공휴일) 근무는 승인이 있어야 기록 가능.
+    (토요일=무급휴무, 놀금·데이오프는 여기서 제외 — 각자 별도 규칙)"""
+    return d.weekday() == 6 or is_public_holiday(d)
