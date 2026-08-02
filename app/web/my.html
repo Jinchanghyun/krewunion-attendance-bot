@@ -447,10 +447,14 @@ document.getElementById('ed-save').addEventListener('click',async()=>{const msg=
   }catch(e){msg.style.color='#dc2626';msg.textContent='저장 실패: '+e;}});
 
 function renderCalendar(grid){const y=cur.getFullYear(),m=cur.getMonth();const start=new Date(y,m,1).getDay(),dim=new Date(y,m+1,0).getDate();const {rec,lv}=maps();
+  const HOL=(DATA&&DATA.holidays)||{};
   const W=DATA.worktime;const FULFILLED=W&&W.work_type==='selective'&&W.scheduled_min>0&&W.actual_min>=W.scheduled_min;
   let cells='';for(let i=0;i<start;i++)cells+='<div class="cell mut"></div>';
-  for(let dd=1;dd<=dim;dd++){const date=new Date(y,m,dd),k=iso(date);let cls='cell',inner=`<div class="dn">${dd}</div>`;
-    if(date.getDay()===0)cls+='';
+  for(let dd=1;dd<=dim;dd++){const date=new Date(y,m,dd),k=iso(date);let cls='cell';
+    const isHol=!!HOL[k], isSun=date.getDay()===0, isSat=date.getDay()===6;
+    const dncol=(isHol||isSun)?'color:#dc2626':(isSat?'color:#2563eb':'');
+    let inner=`<div class="dn" style="${dncol}">${dd}</div>`;
+    if(isHol)inner+=`<div class="badge" style="background:#fee2e2;color:#b91c1c">${HOL[k]}</div>`;
     if(lv[k]){const [lb,c]=LV[lv[k]]||['휴가','bg-off'];inner+=`<div class="badge ${c}">${lb}</div>`;}
     else if(isNol(date)){cls+=' off';inner+=`<div class="badge bg-nol">놀금</div>`;}
     else if(rec[k]){const r=rec[k];

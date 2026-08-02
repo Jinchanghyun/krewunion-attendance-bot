@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from .holidays import is_public_holiday
+
 MON, FRI = 0, 4  # date.weekday(): 월=0 .. 일=6
 
 
@@ -130,16 +132,19 @@ def effective_window(config: dict, d: date, leave_kind: str | None = None) -> di
 
 
 def prompt_times(config: dict, d: date, leave_kind: str | None = None) -> dict:
-    """예약 출퇴근 알림을 보낼 시각. 휴무/연차면 None."""
+    """예약 출퇴근 알림을 보낼 시각. 주말·공휴일·휴무/연차면 None(발송 안 함)."""
+    if d.weekday() >= 5 or is_public_holiday(d):   # 토·일·공휴일은 알림 없음
+        return {"checkin": None, "checkout": None}
     w = effective_window(config, d, leave_kind)
     return {"checkin": w["checkin"], "checkout": w["checkout"]}
 
 
 def working_days(config: dict, start: date, end: date) -> int:
-    """연차 종일 신청 기간의 실제 소진 일수(주말·놀금 제외)."""
+    """연차 종일 신청 기간의 실제 소진 일수(주말·공휴일·놀금 제외)."""
     n, cur = 0, start
     while cur <= end:
-        if cur.weekday() <= FRI and not is_recovery_day(config, cur):
+        if (cur.weekday() <= FRI and not is_recovery_day(config, cur)
+                and not is_public_holiday(cur)):
             n += 1
         cur += timedelta(days=1)
     return n

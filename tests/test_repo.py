@@ -40,9 +40,11 @@ def test_checkin_state_and_overview():
 
 
 def test_checkout_computes_overtime():
-    repo.record_checkout("K-2041", datetime.combine(TODAY, time(20, 0)))
-    month = TODAY.strftime("%Y-%m")
-    rows = {r["employee_id"]: r for r in repo.stats_by_employee(month)["rows"]}
+    # 공휴일·주말이면 전부 휴일근로가 되므로 고정 영업일(목요일, 공휴일 아님)로 검증
+    biz = date(2026, 7, 16)
+    repo.record_checkin("K-2041", "office", datetime.combine(biz, time(9, 0)))
+    repo.record_checkout("K-2041", datetime.combine(biz, time(20, 0)))
+    rows = {r["employee_id"]: r for r in repo.stats_by_employee("2026-07")["rows"]}
     # 09:00~20:00(11h) - 휴게 1h = 600분 근무, 소정 480 → 연장 120
     assert rows["K-2041"]["worked"] == 600
     assert rows["K-2041"]["overtime"] == 120

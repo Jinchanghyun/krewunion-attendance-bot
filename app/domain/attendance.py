@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from .schedule import effective_window, is_recovery_day, hm_to_min
+from .holidays import is_public_holiday
 
 NIGHT_START = 22 * 60  # 22:00
 NIGHT_END = 6 * 60     # 06:00
@@ -51,14 +52,25 @@ def summarize_day(
 
     worked = worked_minutes(checkin, checkout, break_min)
     # 휴일근로: 일요일(6)·공휴일·놀금만. 토요일(5)은 '무급 휴무'이지 휴일근로가 아님.
-    is_holiday = is_company_holiday or d.weekday() == 6 or is_recovery_day(config, d)
+    is_holiday = (is_company_holiday or d.weekday() == 6
+                  or is_recovery_day(config, d) or is_public_holiday(d))
+    work_type = config.get("work_type", "normal")
+    nf = work_type in ("normal", "flex")   # 일 8h·주 40h 정산
     if on_dayoff:
         # 데이오프 근무: 소정근로일이 아니므로 전부 초과근로로 집계
         holiday = 0
         overtime = worked
+    elif is_holiday:
+        # 휴일근로. 일반·시차는 주 40h 초과이므로 휴일근로+초과근로 동시 발생.
+        holiday = worked
+        overtime = worked if nf else 0
+    elif d.weekday() == 5:
+        # 토요일(무급휴무) 근무: 주 40h 초과 → 일반·시차는 전부 초과근로.
+        holiday = 0
+        overtime = worked if nf else 0
     else:
-        holiday = worked if is_holiday else 0
-        overtime = 0 if is_holiday else max(0, worked - scheduled)
+        holiday = 0
+        overtime = max(0, worked - scheduled)
     night = night_minutes(checkin, checkout)
 
     return {"scheduled": scheduled, "worked": worked, "overtime": overtime,

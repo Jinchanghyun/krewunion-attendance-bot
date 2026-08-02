@@ -7,6 +7,7 @@ PyJWT>=2.8
 python-dotenv>=1.0
 slack-bolt>=1.18
 tzdata>=2024.1
+holidays>=0.50
 # 구글 캘린더 연동(연차 종일 이벤트) — GCAL_ENABLED=true 일 때만 실제 사용
 google-api-python-client>=2.120
 google-auth>=2.29

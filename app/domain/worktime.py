@@ -13,6 +13,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 
 from .schedule import FRI, effective_window, is_recovery_day
+from .holidays import is_public_holiday
 
 STD_DAY_MIN = 480          # 소정 1일 = 8시간
 HALF_MIN = 240             # 반일 = 4시간
@@ -57,7 +58,7 @@ def month_scheduled_minutes(config: dict, year: int, month: int) -> int:
     total = 0
     for day in range(1, monthrange(year, month)[1] + 1):
         d = date(year, month, day)
-        if d.weekday() > FRI or is_recovery_day(config, d):
+        if d.weekday() > FRI or is_recovery_day(config, d) or is_public_holiday(d):
             continue
         total += effective_window(config, d, None)["scheduled_minutes"]
     return total
@@ -85,7 +86,8 @@ def leave_used_minutes(config: dict, leaves: list[dict], year: int, month: int) 
         else:
             cur = s               # annual·sabbatical·family_care → 근무일마다
             while cur <= e:
-                if cur.weekday() <= FRI and not is_recovery_day(config, cur):
+                if (cur.weekday() <= FRI and not is_recovery_day(config, cur)
+                        and not is_public_holiday(cur)):
                     total += per
                 cur += timedelta(days=1)
     return total
@@ -117,10 +119,12 @@ def monthly_summary(config: dict, records: list[dict], leaves: list[dict],
             weekend = False
             if ds:
                 try:
-                    weekend = date.fromisoformat(ds).weekday() >= 5  # 토·일
+                    _dd = date.fromisoformat(ds)
+                    weekend = _dd.weekday() >= 5 or is_public_holiday(_dd)  # 토·일·공휴일
                 except Exception:
                     weekend = False
-            if weekend:                # 주말(무급휴무·휴일): 실근로 0, 전부 초과 후보
+            if weekend:                # 주말·공휴일: 실근로에 포함하고 전부 초과 후보
+                actual += w
                 raw_ot += w
             else:
                 actual += min(w, STD_DAY_MIN)

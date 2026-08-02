@@ -291,11 +291,13 @@ def employees_due_for_checkin(now: datetime) -> list[dict]:
     due = []
     with session_scope() as s:
         for e in s.scalars(select(Employee)).all():
+            if _full_leave_kind(s, e.id, today):   # 연차 등 종일 휴가면 알림 없음
+                continue
             c = s.get(WorkConfig, e.id)
             cfg = _config_dict(c) if c else work_config(e.id)
             leave_kind = _today_leave_kind(s, e.id, today)
             pt = prompt_times(cfg, today, leave_kind)
-            if not pt["checkin"] or pt["checkin"] > hm:   # 휴무/연차/아직 시각 전
+            if not pt["checkin"] or pt["checkin"] > hm:   # 주말·공휴일·놀금/반차 시각 전
                 continue
             already = s.scalar(select(AttendanceRecord).where(
                 AttendanceRecord.employee_id == e.id, AttendanceRecord.date == today))
@@ -342,12 +344,16 @@ def record_manual(employee_id: str, d: date, checkin_hm: str,
             worked = max(0, summary["worked"] - away_min)   # 자리비움 차감
             rec.work_minutes = worked
             rec.night_minutes = summary["night"]
+            nf = cfg.get("work_type") in ("normal", "flex")
             if on_dayoff:                    # 데이오프 근무: 전부 초과근로
                 rec.holiday_minutes = 0
                 rec.overtime_minutes = worked
-            elif summary["holiday"]:
+            elif summary["holiday"]:         # 휴일근로 — 일반·시차는 초과근로 동시 발생
                 rec.holiday_minutes = worked
-                rec.overtime_minutes = 0
+                rec.overtime_minutes = worked if nf else 0
+            elif d.weekday() == 5:           # 토요일 근무 — 일반·시차는 전부 초과근로
+                rec.holiday_minutes = 0
+                rec.overtime_minutes = worked if nf else 0
             else:
                 rec.holiday_minutes = 0
                 rec.overtime_minutes = max(0, worked - summary["scheduled"])
@@ -754,8 +760,16 @@ def my_month(employee_id: str, month: str) -> dict:
     else:
         wt["can_request_ot"] = False
         wt["ot_window_note"] = ""
+    from app.domain.holidays import public_holiday_name
+    from calendar import monthrange as _mr
+    hol = {}
+    for _day in range(1, _mr(yy, mm)[1] + 1):
+        _dd = date(yy, mm, _day)
+        _nm = public_holiday_name(_dd)
+        if _nm:
+            hol[_dd.isoformat()] = _nm
     return {"month": month, "records": records, "leaves": leaves,
-            "config": cfg, "summary": summary, "worktime": wt}
+            "config": cfg, "summary": summary, "worktime": wt, "holidays": hol}
 
 
 def my_approvals(employee_id: str) -> list[dict]:
