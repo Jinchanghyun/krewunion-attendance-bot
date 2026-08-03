@@ -101,19 +101,41 @@ def home_view(emp: dict, state: dict) -> dict:
             if _hn:
                 blocks.append({"type": "section", "text": {"type": "mrkdwn",
                     "text": f":no_entry: *오늘은 {_hn}(휴일)입니다.* 휴일근무는 ‘시간외근무’ 탭에서 *휴일근무 승인*을 받은 경우에만 출근이 기록됩니다."}})
-        # 출퇴근
-        blocks += group(":clock9: *출퇴근*", "/attend in · /attend out", [
-            _button("출근", "checkin", style="primary"),
-            _button("퇴근", "checkout"),
-        ])
-        # 재택근무
-        blocks += group(":house: *재택근무*", "/attend remote", [
-            _button("재택근무로 출근", "remote"),
-        ])
-        # 외근
-        blocks += group(":round_pushpin: *외근*", "/attend field", [
-            _button("외근으로 전환", "field"),
-        ])
+        _checked_in = state.get("status") in ("work", "remote", "field")
+        _checked_out = state.get("checked_out")
+        if not _checked_in:
+            # 미출근 → 출근·재택·외근 버튼만
+            blocks += group(":clock9: *출퇴근*", "/attend in", [
+                _button("출근", "checkin", style="primary"),
+            ])
+            blocks += group(":house: *재택근무*", "/attend remote", [
+                _button("재택근무로 출근", "remote"),
+            ])
+            blocks += group(":round_pushpin: *외근*", "/attend field", [
+                _button("외근으로 전환", "field"),
+            ])
+        elif not _checked_out:
+            # 근무 중 → 출근 버튼은 숨기고, 근무형태 전환 + 퇴근 버튼 표시
+            _ci = state.get("checkin")
+            _mode = {"work": "사무실 근무", "remote": "재택근무", "field": "외근"}.get(state.get("status"), "근무")
+            blocks.append({"type": "section", "text": {"type": "mrkdwn",
+                "text": f":clock9: *출근 {_ci}* · 현재 *{_mode}* 중 · 근무 {worked}"}})
+            switches = []
+            if state.get("status") != "work":
+                switches.append(_button("사무실 근무로 전환", "checkin"))
+            if state.get("status") != "remote":
+                switches.append(_button("재택근무로 전환", "remote"))
+            if state.get("status") != "field":
+                switches.append(_button("외근으로 전환", "field"))
+            if switches:
+                blocks += group(":arrows_counterclockwise: *근무형태 전환*", "/attend remote · field", switches)
+            blocks += group(":door: *퇴근*", "/attend out", [
+                _button("퇴근", "checkout", style="primary"),
+            ])
+        else:
+            # 퇴근 완료 → 버튼 없음
+            blocks.append({"type": "section", "text": {"type": "mrkdwn",
+                "text": f":white_check_mark: *오늘 근무 완료* · 출근 {state.get('checkin')} ~ 퇴근 {state.get('checkout')} (근무 {worked})"}})
     blocks.append({"type": "divider"})
 
     # 휴가 신청

@@ -228,7 +228,10 @@ def today_state(employee_id: str) -> dict:
             end = rec.checked_out_at or now_kst()
             mins = max(0, int((end - rec.checked_in_at).total_seconds() // 60))
             return {"status": status,
-                    "worked": f"{mins // 60}시간 {mins % 60:02d}분", "leave_kind": None}
+                    "worked": f"{mins // 60}시간 {mins % 60:02d}분", "leave_kind": None,
+                    "checkin": rec.checked_in_at.strftime("%H:%M"),
+                    "checked_out": bool(rec.checked_out_at),
+                    "checkout": rec.checked_out_at.strftime("%H:%M") if rec.checked_out_at else None}
         if rec and rec.type == "dayoff":   # 자동/수동 데이오프 → 휴무
             return {"status": "off", "worked": "-", "leave_kind": "dayoff"}
         # 미출근

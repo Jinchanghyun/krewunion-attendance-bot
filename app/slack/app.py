@@ -57,12 +57,28 @@ def _refresh_home(client, emp):
                          view=views.home_view(emp, repo.today_state(emp["id"])))
 
 
+def _clear_prompt(client, body, text) -> bool:
+    """예약 알림 등 '메시지'에서 버튼을 눌렀으면, 그 메시지를 확인 문구로 바꾸고 버튼 제거.
+    메시지에서 온 경우 True(=별도 DM 확인 불필요)."""
+    cont = body.get("container") or {}
+    if cont.get("type") == "message" and body.get("channel") and body.get("message"):
+        try:
+            client.chat_update(channel=body["channel"]["id"], ts=body["message"]["ts"],
+                               text=text,
+                               blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": text}}])
+            return True
+        except Exception as ex:
+            print("clear prompt failed:", ex)
+    return False
+
+
 def _do_checkin(client, emp, kind):
+    """성공 시 info dict 반환, 차단 시 None(사유 메시지는 여기서 발송)."""
     fl = repo.today_full_leave_kind(emp["id"])
     if fl:   # 연차 등 실제 종일 휴가면 출근 불가(놀금은 출근 허용)
         client.chat_postMessage(channel=emp["slack_user_id"],
             text=f":palm_tree: 오늘은 *{leave_engine.LEAVE_LABEL.get(fl, '휴가')}*로 등록돼 있어 출근 기록을 할 수 없습니다.")
-        return
+        return None
     from app.domain.holidays import needs_work_approval
     _today = now_kst().date()
     if needs_work_approval(_today) and not repo.has_approved_holiday_work(emp["id"], _today):
@@ -72,9 +88,8 @@ def _do_checkin(client, emp, kind):
                   "‘시간외근무’ 탭에서 *휴일근무 승인*을 받은 뒤 기록해 주세요.\n"
                   "• 사전 승인: 승인 후 이 *출근* 버튼으로 바로 기록\n"
                   "• 사후 승인: 승인 후 웹 ‘출퇴근 기록’에서 근무시간 입력"))
-        return
+        return None
     info = repo.record_checkin(emp["id"], kind, now_kst())
-    client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkin_confirm(info))
     # 재택근무는 팀 채널에 공유(하루 1회만) — "OOO님 오늘 재택근무입니다."
     if kind == "remote" and settings.OFF_ANNOUNCE_CHANNEL:
         try:
@@ -84,14 +99,14 @@ def _do_checkin(client, emp, kind):
         except Exception as ex:
             print("remote announce failed:", ex)
     _refresh_home(client, emp)
+    return info
 
 
 def _do_checkout(client, emp):
+    """성공 시 summary dict 반환, 출근 기록 없으면 None."""
     summary = repo.record_checkout(emp["id"], now_kst())
     if summary:
-        client.chat_postMessage(channel=emp["slack_user_id"], text=views.checkout_confirm(summary))
-        # 선택근무자가 이 퇴근으로 이번 달 소정근로를 채웠으면 남은 날 자동 데이오프 + 안내
-        try:
+        try:   # 선택근무자가 이 퇴근으로 소정 충족 시 남은 날 자동 데이오프
             newly = repo.apply_auto_dayoff(emp["id"])
             if newly:
                 from app.scheduler.tasks import _dayoff_dm_text
@@ -100,38 +115,51 @@ def _do_checkout(client, emp):
         except Exception as ex:
             print("auto-dayoff on checkout failed:", ex)
     _refresh_home(client, emp)
+    return summary
+
+
+def _handle_checkin(body, client, kind):
+    emp = _guard(client, body["user"]["id"])
+    if not emp:
+        return
+    info = _do_checkin(client, emp, kind)
+    if info:
+        text = views.checkin_confirm(info)
+        if not _clear_prompt(client, body, text):   # 메시지에서 왔으면 그 메시지를 교체
+            client.chat_postMessage(channel=emp["slack_user_id"], text=text)
 
 
 @app.action("checkin")
 def on_checkin(ack, body, client):
     ack()
-    emp = _guard(client, body["user"]["id"])
-    if emp:
-        _do_checkin(client, emp, "office")
+    _handle_checkin(body, client, "office")
 
 
 @app.action("remote")
 def on_remote(ack, body, client):
     ack()
-    emp = _guard(client, body["user"]["id"])
-    if emp:
-        _do_checkin(client, emp, "remote")
+    _handle_checkin(body, client, "remote")
 
 
 @app.action("field")
 def on_field(ack, body, client):
     ack()
-    emp = _guard(client, body["user"]["id"])
-    if emp:
-        _do_checkin(client, emp, "field")
+    _handle_checkin(body, client, "field")
 
 
 @app.action("checkout")
 def on_checkout(ack, body, client):
     ack()
     emp = _guard(client, body["user"]["id"])
-    if emp:
-        _do_checkout(client, emp)
+    if not emp:
+        return
+    summary = _do_checkout(client, emp)
+    if summary:
+        text = views.checkout_confirm(summary)
+        if not _clear_prompt(client, body, text):
+            client.chat_postMessage(channel=emp["slack_user_id"], text=text)
+    else:
+        client.chat_postMessage(channel=emp["slack_user_id"], text="출근 기록이 없어 퇴근할 수 없습니다.")
 
 
 # ── 연차: "연차" 치면 등록 화면 (두 경로) ─────────────
