@@ -326,6 +326,14 @@ def leave_modal(leave_config: dict | None = None, custom_types: list | None = No
 
 def settings_modal(config: dict) -> dict:
     """근무 설정 모달(간단 항목). 놀금·단축 상세는 웹 설정 페이지 링크로 유도."""
+    _wt_opts = [
+        {"text": {"type": "plain_text", "text": "일반근무"}, "value": "normal"},
+        {"text": {"type": "plain_text", "text": "시차근무"}, "value": "flex"},
+        {"text": {"type": "plain_text", "text": "선택적근무"}, "value": "selective"},
+        {"text": {"type": "plain_text", "text": "탄력근무"}, "value": "elastic"},
+    ]
+    _wt_cur = config.get("work_type", "normal")
+    _wt_init = next((o for o in _wt_opts if o["value"] == _wt_cur), _wt_opts[0])
     return {
         "type": "modal", "callback_id": "settings_modal",
         "title": {"type": "plain_text", "text": "근무 설정"},
@@ -334,12 +342,8 @@ def settings_modal(config: dict) -> dict:
         "blocks": [
             {"type": "input", "block_id": "work_type", "label": {"type": "plain_text", "text": "근무제도"},
              "element": {"type": "static_select", "action_id": "v",
-                "options": [
-                    {"text": {"type": "plain_text", "text": "일반근무"}, "value": "normal"},
-                    {"text": {"type": "plain_text", "text": "시차근무"}, "value": "flex"},
-                    {"text": {"type": "plain_text", "text": "선택적근무"}, "value": "selective"},
-                    {"text": {"type": "plain_text", "text": "탄력근무"}, "value": "elastic"},
-                ]}},
+                "initial_option": _wt_init,   # 현재 설정을 유지(없으면 저장 시 리셋됨)
+                "options": _wt_opts}},
             {"type": "input", "block_id": "checkin", "label": {"type": "plain_text", "text": "출근"},
              "element": {"type": "timepicker", "action_id": "v",
                          "initial_time": config.get("checkin", "09:00")}},
