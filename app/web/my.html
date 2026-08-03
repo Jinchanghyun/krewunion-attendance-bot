@@ -108,7 +108,7 @@ select,input[type=time],input[type=date],input[type=text]{width:100%;padding:8px
     <span class="tab" data-t="ot">시간외근무</span>
   </div>
 
-  <div class="mnav card" style="display:flex;align-items:center;justify-content:center;padding:10px">
+  <div class="mnav card" id="mnav" style="display:flex;align-items:center;justify-content:center;padding:10px">
     <button onclick="moveMonth(-1)">‹</button>
     <span class="lbl" id="mlabel">—</span>
     <button onclick="moveMonth(1)">›</button>
@@ -619,9 +619,11 @@ function buildLeaveOptions(cfg){const on=k=>cfg[k]&&cfg[k].on;const g=[['연차'
 function renderLeaveDropdown(cfg){const sel=$('lv-kind');if(!sel)return;sel.innerHTML=buildLeaveOptions(cfg).map(([label,opts])=>`<optgroup label="${label}">`+opts.map(([v,t])=>`<option value="${v}">${t}</option>`).join('')+'</optgroup>').join('');}
 
 /* 탭 전환 */
+const MNAV_TABS=['cal','rec','sch','ot'];   // 월 이동 바가 필요한 탭(휴가 신청·관리는 월 무관)
 document.querySelector('.tabs').addEventListener('click',e=>{const t=e.target.closest('.tab');if(!t)return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
   ['cal','rec','sch','lv','lvcfg','ot'].forEach(id=>$('tab-'+id).classList.toggle('hidden',id!==t.dataset.t));
+  const mn=$('mnav');if(mn)mn.style.display=MNAV_TABS.includes(t.dataset.t)?'flex':'none';
   if(t.dataset.t==='ot')loadOvertime();
   if(t.dataset.t==='lv')loadLeave();
   if(t.dataset.t==='lvcfg')loadLeaveConfig();});
