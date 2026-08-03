@@ -429,8 +429,9 @@ window.closeEdit=()=>{$('edit-modal').style.display='none';};
 function openEditDay(ds){editDate=ds;const {rec}=maps();const r=rec[ds];
   $('edit-title').textContent=ds+' 출퇴근 편집';
   $('ed-kind').value=(r&&r.type)||'office';
-  setTime('ed-in',(r&&r.checkin)||(CFG&&CFG.checkin)||'09:00');
-  setTime('ed-out',(r&&r.checkout)||(CFG&&CFG.checkout)||'18:00');
+  // 실제 기록만 채운다. 근무설정 시각으로 미리 채우면 저장 시 '안 한 퇴근'이 기록되므로 금지.
+  setTime('ed-in',(r&&r.checkin)||'');
+  setTime('ed-out',(r&&r.checkout)||'');
   setTime('ed-away-from','');setTime('ed-away-to','');$('ed-msg').textContent='';
   $('edit-modal').style.display='flex';}
 document.getElementById('calgrid').addEventListener('click',e=>{const c=e.target.closest('[data-d]');if(c)openEditDay(c.dataset.d);});
